@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:root",
+  "display": {
+    "icon": {
+      "id": "minecraft:compass"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.deja_vu.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.deja_vu.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

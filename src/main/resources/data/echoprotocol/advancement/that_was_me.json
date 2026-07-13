@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:deja_vu",
+  "display": {
+    "icon": {
+      "id": "minecraft:clock"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.that_was_me.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.that_was_me.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

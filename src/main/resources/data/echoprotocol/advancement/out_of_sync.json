@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:corrupted_memory",
+  "display": {
+    "icon": {
+      "id": "minecraft:recovery_compass"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.out_of_sync.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.out_of_sync.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

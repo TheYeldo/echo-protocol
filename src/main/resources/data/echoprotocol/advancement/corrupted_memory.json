@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:it_saw_me",
+  "display": {
+    "icon": {
+      "id": "minecraft:sculk_sensor"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.corrupted_memory.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.corrupted_memory.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

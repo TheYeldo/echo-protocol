@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "echoprotocol",
+  "version": "${version}",
+  "name": "Echo Protocol",
+  "description": "A psychological horror mod where the world replays distorted memories of the player.",
+  "authors": [
+    "Yeldos"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/echoprotocol/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.yeldos.echoprotocol.EchoProtocol"
+    ],
+    "client": [
+      "dev.yeldos.echoprotocol.client.EchoProtocolClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "fabric-api": "*",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}
