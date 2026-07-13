@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:broken_memory",
+  "display": {
+    "icon": {
+      "id": "minecraft:ender_eye"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.it_looked_back.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.it_looked_back.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

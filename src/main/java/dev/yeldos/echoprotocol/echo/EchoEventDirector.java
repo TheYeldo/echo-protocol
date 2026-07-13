@@ -16,16 +16,24 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class EchoEventDirector {
     private final RecordingManager recordingManager;
     private final StageManager stageManager;
+    private final Map<UUID, List<EchoEntity>> activeEchoes = new HashMap<>();
+    private final Map<UUID, Long> lastMimicTick = new HashMap<>();
+    private final List<UUID> mimicSpawnedThisSession = new ArrayList<>();
+    private long lastGlobalMimicTick = -9999999L;
 
     public EchoEventDirector(RecordingManager recordingManager, StageManager stageManager) {
         this.recordingManager = recordingManager;
@@ -33,15 +41,17 @@ public final class EchoEventDirector {
     }
 
     public void tick(MinecraftServer server, EchoConfig config) {
+        cleanupActiveEchoes();
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             PlayerEchoState state = stageManager.state(player.getUuid());
             if (state.stage() == EchoStage.OBSERVATION || !canRunEvent(player, state)) {
                 continue;
             }
             if (stageManager.tick() >= state.nextEventTick()) {
-                boolean spawned = spawnReplay(player, false, config);
+                EchoType type = chooseEchoType(player, config, false);
+                boolean spawned = spawnEcho(player, type, false, false, config);
                 stageManager.scheduleNextEvent(state, config);
-                if (spawned && state.stage() == EchoStage.DEJA_VU) {
+                if (spawned && type == EchoType.MEMORY && state.stage() == EchoStage.DEJA_VU) {
                     state.incrementStageOneEvents();
                 }
             }
@@ -49,9 +59,27 @@ public final class EchoEventDirector {
     }
 
     public boolean spawnReplay(ServerPlayerEntity target, boolean forced, EchoConfig config) {
+        return spawnEcho(target, EchoType.MEMORY, forced, false, config);
+    }
+
+    public boolean spawnEcho(ServerPlayerEntity target, EchoType type, boolean forced, boolean forcedHostile, EchoConfig config) {
         PlayerRecording recording = recordingManager.get(target.getUuid());
         if (recording == null) {
             return false;
+        }
+        cleanupActiveEchoes();
+        PlayerEchoState state = stageManager.state(target.getUuid());
+        if (state.activeEvent()) {
+            if (!forced) {
+                return false;
+            }
+            stopEvents(target);
+        }
+        if (!forced && isTooCloseToOtherPlayer(target, config)) {
+            return false;
+        }
+        if (!forced && !canSpawnType(target, type, config)) {
+            type = EchoType.MEMORY;
         }
         int minFrames = Math.max(2, config.minimumReplaySeconds() * 20 / config.recordingSampleIntervalTicks());
         int maxFrames = Math.max(minFrames, config.maximumReplaySeconds() * 20 / config.recordingSampleIntervalTicks());
@@ -62,23 +90,32 @@ public final class EchoEventDirector {
         RecordedFrame start = segment.get(0);
         ServerWorld world = target.getServerWorld();
         EchoEntity echo = new EchoEntity(EchoEntities.ECHO, world);
-        PlayerEchoState state = stageManager.state(target.getUuid());
-        boolean corrupted = state.stage() == EchoStage.CORRUPTED_MEMORY && ThreadLocalRandom.current().nextBoolean();
-        List<RecordedFrame> frames = corrupted ? corruptSegment(segment, target) : segment;
-        echo.configure(target.getUuid(), config.sharedEchoes(), frames, config.recordingSampleIntervalTicks(), config, corrupted);
+        EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, forcedHostile);
+        EchoBehaviorController behavior = behaviorFor(type, context);
+        List<RecordedFrame> frames = type == EchoType.CORRUPTED ? corruptSegment(segment, target) : segment;
+        echo.configure(target.getUuid(), config.sharedEchoes(), frames, config.recordingSampleIntervalTicks(), config, context, behavior);
         echo.refreshPositionAndAngles(start.x(), start.y(), start.z(), start.bodyYaw(), start.pitch());
         world.spawnEntity(echo);
+        activeEchoes.computeIfAbsent(target.getUuid(), ignored -> new ArrayList<>()).add(echo);
+        state.setActiveEvent(true);
+        if (type == EchoType.MIMIC) {
+            lastMimicTick.put(target.getUuid(), stageManager.tick());
+            lastGlobalMimicTick = stageManager.tick();
+            if (!mimicSpawnedThisSession.contains(target.getUuid())) {
+                mimicSpawnedThisSession.add(target.getUuid());
+            }
+        }
+        playEchoAmbient(target, config, new Vec3d(start.x(), start.y(), start.z()));
 
         state.incrementTotalEvents();
         stageManager.grant(target, "deja_vu");
-        stageManager.grant(target, "that_was_me");
-        if (corrupted) {
-            stageManager.grant(target, "it_saw_me");
+        if (type == EchoType.MEMORY) {
+            stageManager.grant(target, "that_was_me");
         }
         if (forced || ThreadLocalRandom.current().nextInt(6) == 0) {
             playMemorySound(target, recording, config);
         }
-        if (config.torchFlicker()) {
+        if (config.torchFlicker() || config.echoLightEffects()) {
             spawnTargetedParticles(target, new Vec3d(start.x(), start.y() + 1.1D, start.z()));
         }
         if (state.stage() == EchoStage.CORRUPTED_MEMORY && config.chatEchoes()) {
@@ -95,6 +132,18 @@ public final class EchoEventDirector {
         return !player.isSleeping() && !state.activeEvent() && !player.isSpectator();
     }
 
+    private static boolean isTooCloseToOtherPlayer(ServerPlayerEntity target, EchoConfig config) {
+        if (config.sharedEchoes()) {
+            return false;
+        }
+        for (ServerPlayerEntity other : target.getServerWorld().getPlayers()) {
+            if (other != target && !other.isSpectator() && other.squaredDistanceTo(target) < 24.0D * 24.0D) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static List<RecordedFrame> corruptSegment(List<RecordedFrame> original, ServerPlayerEntity target) {
         if (original.size() < 4) {
             return original;
@@ -105,6 +154,97 @@ public final class EchoEventDirector {
             return frames.reversed();
         }
         return frames;
+    }
+
+    private EchoType chooseEchoType(ServerPlayerEntity target, EchoConfig config, boolean forced) {
+        List<EchoType> types = new ArrayList<>();
+        List<Integer> weights = new ArrayList<>();
+        addType(target, config, types, weights, EchoType.MEMORY, config.memoryEchoEnabled(), config.memoryEchoWeight());
+        addType(target, config, types, weights, EchoType.CORRUPTED, config.corruptedEchoEnabled(), config.corruptedEchoWeight());
+        addType(target, config, types, weights, EchoType.MIMIC, config.mimicEchoEnabled(), config.mimicEchoWeight());
+        int total = weights.stream().mapToInt(Integer::intValue).sum();
+        if (total <= 0 || types.isEmpty()) {
+            return EchoType.MEMORY;
+        }
+        int pick = ThreadLocalRandom.current().nextInt(total);
+        for (int i = 0; i < types.size(); i++) {
+            pick -= weights.get(i);
+            if (pick < 0) {
+                return types.get(i);
+            }
+        }
+        return EchoType.MEMORY;
+    }
+
+    private void addType(ServerPlayerEntity target, EchoConfig config, List<EchoType> types, List<Integer> weights, EchoType type, boolean enabled, int weight) {
+        if (enabled && weight > 0 && canSpawnType(target, type, config)) {
+            types.add(type);
+            weights.add(weight);
+        }
+    }
+
+    private boolean canSpawnType(ServerPlayerEntity target, EchoType type, EchoConfig config) {
+        PlayerEchoState state = stageManager.state(target.getUuid());
+        return switch (type) {
+            case MEMORY -> config.memoryEchoEnabled() && state.stage().id() >= EchoStage.DEJA_VU.id();
+            case CORRUPTED -> config.corruptedEchoEnabled()
+                    && state.stage() == EchoStage.CORRUPTED_MEMORY
+                    && state.stageOneEvents() >= 2;
+            case MIMIC -> config.mimicEchoEnabled()
+                    && state.stage() == EchoStage.CORRUPTED_MEMORY
+                    && state.playTicks() >= (long) (config.stageTwoMinutes() + config.mimicMinimumStageTwoMinutes()) * 60L * 20L
+                    && !mimicSpawnedThisSession.contains(target.getUuid())
+                    && stageManager.tick() - lastGlobalMimicTick >= (long) config.mimicSessionCooldownMinutes() * 60L * 20L
+                    && stageManager.tick() - lastMimicTick.getOrDefault(target.getUuid(), -9999999L) >= (long) config.mimicSessionCooldownMinutes() * 60L * 20L;
+        };
+    }
+
+    private static EchoBehaviorController behaviorFor(EchoType type, EchoEventContext context) {
+        return switch (type) {
+            case MEMORY -> new MemoryEchoBehavior();
+            case CORRUPTED -> new CorruptedEchoBehavior(context);
+            case MIMIC -> new MimicEchoBehavior(context);
+        };
+    }
+
+    public int stopEvents(ServerPlayerEntity target) {
+        List<EchoEntity> echoes = activeEchoes.remove(target.getUuid());
+        if (echoes == null) {
+            stageManager.state(target.getUuid()).setActiveEvent(false);
+            return 0;
+        }
+        int stopped = 0;
+        for (EchoEntity echo : echoes) {
+            if (!echo.isRemoved()) {
+                echo.finishAndDiscard();
+                stopped++;
+            }
+        }
+        stageManager.state(target.getUuid()).setActiveEvent(false);
+        return stopped;
+    }
+
+    public boolean setMimicHostile(ServerPlayerEntity target, boolean hostile) {
+        cleanupActiveEchoes();
+        List<EchoEntity> echoes = activeEchoes.getOrDefault(target.getUuid(), List.of());
+        for (EchoEntity echo : echoes) {
+            if (!echo.isRemoved() && echo.echoType() == EchoType.MIMIC && echo.behavior() != null) {
+                echo.behavior().forceHostile(hostile);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void cleanupActiveEchoes() {
+        activeEchoes.entrySet().removeIf(entry -> {
+            entry.getValue().removeIf(EchoEntity::isRemoved);
+            if (entry.getValue().isEmpty()) {
+                stageManager.state(entry.getKey()).setActiveEvent(false);
+                return true;
+            }
+            return false;
+        });
     }
 
     private static void playMemorySound(ServerPlayerEntity target, PlayerRecording recording, EchoConfig config) {
@@ -127,6 +267,14 @@ public final class EchoEventDirector {
         }
     }
 
+    private static void playEchoAmbient(ServerPlayerEntity target, EchoConfig config, Vec3d pos) {
+        if (config.sharedEchoes()) {
+            target.getServerWorld().playSound(null, pos.x, pos.y, pos.z, SoundEvents.AMBIENT_CAVE.value(), SoundCategory.PLAYERS, 0.08F, 0.65F);
+        } else {
+            target.playSoundToPlayer(SoundEvents.AMBIENT_CAVE.value(), SoundCategory.PLAYERS, 0.08F, 0.65F);
+        }
+    }
+
     private static void spawnTargetedParticles(ServerPlayerEntity player, Vec3d pos) {
         player.getServerWorld().spawnParticles(player, ParticleTypes.SCULK_SOUL, true, pos.x, pos.y, pos.z,
                 8, 0.15D, 0.35D, 0.15D, 0.01D);
@@ -143,5 +291,16 @@ public final class EchoEventDirector {
     }
 
     public void clear() {
+        for (List<EchoEntity> echoes : activeEchoes.values()) {
+            for (EchoEntity echo : echoes) {
+                if (!echo.isRemoved()) {
+                    echo.finishAndDiscard();
+                }
+            }
+        }
+        activeEchoes.clear();
+        lastMimicTick.clear();
+        mimicSpawnedThisSession.clear();
+        lastGlobalMimicTick = -9999999L;
     }
 }

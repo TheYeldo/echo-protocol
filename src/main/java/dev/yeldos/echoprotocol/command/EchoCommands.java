@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.echo.EchoEventDirector;
+import dev.yeldos.echoprotocol.echo.EchoType;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.stage.EchoStage;
 import dev.yeldos.echoprotocol.stage.StageManager;
@@ -42,8 +43,34 @@ public final class EchoCommands {
                                                             return 1;
                                                         })))))
                         .then(CommandManager.literal("spawn")
+                                .then(CommandManager.literal("memory")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> forceTypedReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.MEMORY, false))))
+                                .then(CommandManager.literal("corrupted")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> forceTypedReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.CORRUPTED, false))))
+                                .then(CommandManager.literal("mimic")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> forceTypedReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.MIMIC, false))))
                                 .then(CommandManager.argument("player", EntityArgumentType.player())
                                         .executes(context -> forceReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director))))
+                        .then(CommandManager.literal("event")
+                                .then(CommandManager.literal("stop")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    int stopped = director.stopEvents(player);
+                                                    context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.event_stop",
+                                                            player.getName().getString(), stopped), true);
+                                                    return stopped;
+                                                }))))
+                        .then(CommandManager.literal("mimic")
+                                .then(CommandManager.literal("hostile")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> setMimicMode(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, true))))
+                                .then(CommandManager.literal("harmless")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> setMimicMode(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, false)))))
                         .then(CommandManager.literal("replay")
                                 .then(CommandManager.argument("player", EntityArgumentType.player())
                                         .executes(context -> forceReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director))))
@@ -85,6 +112,29 @@ public final class EchoCommands {
             return 1;
         }
         source.sendError(Text.translatable("text.echoprotocol.command.no_recording", player.getName().getString()));
+        return 0;
+    }
+
+    private static int forceTypedReplay(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                        EchoEventDirector director, EchoType type, boolean hostile) {
+        if (director.spawnEcho(player, type, true, hostile, EchoProtocol.config())) {
+            source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.spawned_type",
+                    player.getName().getString(), type.name().toLowerCase(java.util.Locale.ROOT)), true);
+            return 1;
+        }
+        source.sendError(Text.translatable("text.echoprotocol.command.no_recording", player.getName().getString()));
+        return 0;
+    }
+
+    private static int setMimicMode(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                    EchoEventDirector director, boolean hostile) {
+        if (director.setMimicHostile(player, hostile)) {
+            source.sendFeedback(() -> Text.translatable(hostile
+                    ? "text.echoprotocol.command.mimic_hostile"
+                    : "text.echoprotocol.command.mimic_harmless", player.getName().getString()), true);
+            return 1;
+        }
+        source.sendError(Text.translatable("text.echoprotocol.command.no_active_mimic", player.getName().getString()));
         return 0;
     }
 

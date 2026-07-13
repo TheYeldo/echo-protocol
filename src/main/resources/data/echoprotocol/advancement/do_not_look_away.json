@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:not_me",
+  "display": {
+    "icon": {
+      "id": "minecraft:soul_torch"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.do_not_look_away.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.do_not_look_away.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

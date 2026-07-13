@@ -27,13 +27,34 @@ public record EchoConfig(
         boolean torchFlicker,
         boolean soundEchoes,
         float echoOpacity,
-        boolean debugLogging
+        boolean debugLogging,
+        boolean memoryEchoEnabled,
+        boolean corruptedEchoEnabled,
+        boolean mimicEchoEnabled,
+        int memoryEchoWeight,
+        int corruptedEchoWeight,
+        int mimicEchoWeight,
+        int mimicMinimumStageTwoMinutes,
+        int mimicSessionCooldownMinutes,
+        int mimicMovementDelayMinTicks,
+        int mimicMovementDelayMaxTicks,
+        boolean mimicDamageEnabled,
+        float mimicDamage,
+        int mimicMaxHitsPerEvent,
+        boolean mimicChaseEnabled,
+        int mimicChaseMinSeconds,
+        int mimicChaseMaxSeconds,
+        boolean corruptedEchoCanApproach,
+        boolean echoMovesWhenUnobserved,
+        boolean echoLightEffects,
+        boolean echoSoundEffects
 ) {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("echo_protocol.json");
 
     public static EchoConfig defaults() {
-        return new EchoConfig(true, 2, 10, 5, 15, 10, 60, 480, 1080, false, false, true, true, 0.45F, false);
+        return new EchoConfig(true, 2, 10, 5, 15, 10, 60, 480, 1080, false, false, true, true, 0.45F, false,
+                true, true, true, 70, 25, 5, 30, 60, 40, 80, true, 4.0F, 1, true, 5, 10, true, true, true, true);
     }
 
     public static EchoConfig load() {
@@ -54,7 +75,11 @@ public record EchoConfig(
         EchoConfig updated = new EchoConfig(enabled, recordingSampleIntervalTicks, maximumHistoryMinutes,
                 minimumReplaySeconds, maximumReplaySeconds, stageZeroMinutes, stageTwoMinutes,
                 minimumEventIntervalSeconds, maximumEventIntervalSeconds, sharedEchoes, chatEchoes,
-                torchFlicker, soundEchoes, echoOpacity, debugLogging).validate();
+                torchFlicker, soundEchoes, echoOpacity, debugLogging, memoryEchoEnabled, corruptedEchoEnabled,
+                mimicEchoEnabled, memoryEchoWeight, corruptedEchoWeight, mimicEchoWeight, mimicMinimumStageTwoMinutes,
+                mimicSessionCooldownMinutes, mimicMovementDelayMinTicks, mimicMovementDelayMaxTicks, mimicDamageEnabled,
+                mimicDamage, mimicMaxHitsPerEvent, mimicChaseEnabled, mimicChaseMinSeconds, mimicChaseMaxSeconds,
+                corruptedEchoCanApproach, echoMovesWhenUnobserved, echoLightEffects, echoSoundEffects).validate();
         updated.save();
         return updated;
     }
@@ -85,8 +110,23 @@ public record EchoConfig(
         int minInterval = clamp(minimumEventIntervalSeconds, 30, 86400);
         int maxInterval = clamp(Math.max(maximumEventIntervalSeconds, minInterval), minInterval, 86400);
         float opacity = Math.max(0.05F, Math.min(1.0F, echoOpacity));
+        int memoryWeight = clamp(memoryEchoWeight, 0, 1000);
+        int corruptedWeight = clamp(corruptedEchoWeight, 0, 1000);
+        int mimicWeight = clamp(mimicEchoWeight, 0, 1000);
+        int mimicStageMinutes = clamp(mimicMinimumStageTwoMinutes, 0, 1440);
+        int mimicCooldown = clamp(mimicSessionCooldownMinutes, 1, 1440);
+        int delayMin = clamp(mimicMovementDelayMinTicks, 10, 200);
+        int delayMax = clamp(Math.max(mimicMovementDelayMaxTicks, delayMin), delayMin, 400);
+        float damage = Math.max(0.0F, Math.min(20.0F, mimicDamage));
+        int maxHits = clamp(mimicMaxHitsPerEvent, 0, 5);
+        int chaseMin = clamp(mimicChaseMinSeconds, 1, 30);
+        int chaseMax = clamp(Math.max(mimicChaseMaxSeconds, chaseMin), chaseMin, 60);
         return new EchoConfig(enabled, sample, history, minReplay, maxReplay, stageZero, stageTwo, minInterval,
-                maxInterval, sharedEchoes, chatEchoes, torchFlicker, soundEchoes, opacity, debugLogging);
+                maxInterval, sharedEchoes, chatEchoes, torchFlicker, soundEchoes, opacity, debugLogging,
+                memoryEchoEnabled, corruptedEchoEnabled, mimicEchoEnabled, memoryWeight, corruptedWeight, mimicWeight,
+                mimicStageMinutes, mimicCooldown, delayMin, delayMax, mimicDamageEnabled, damage, maxHits,
+                mimicChaseEnabled, chaseMin, chaseMax, corruptedEchoCanApproach, echoMovesWhenUnobserved,
+                echoLightEffects, echoSoundEffects);
     }
 
     private Raw toRaw() {
@@ -106,6 +146,26 @@ public record EchoConfig(
         raw.sound_echoes = soundEchoes;
         raw.echo_opacity = echoOpacity;
         raw.debug_logging = debugLogging;
+        raw.memory_echo_enabled = memoryEchoEnabled;
+        raw.corrupted_echo_enabled = corruptedEchoEnabled;
+        raw.mimic_echo_enabled = mimicEchoEnabled;
+        raw.memory_echo_weight = memoryEchoWeight;
+        raw.corrupted_echo_weight = corruptedEchoWeight;
+        raw.mimic_echo_weight = mimicEchoWeight;
+        raw.mimic_minimum_stage_two_minutes = mimicMinimumStageTwoMinutes;
+        raw.mimic_session_cooldown_minutes = mimicSessionCooldownMinutes;
+        raw.mimic_movement_delay_min_ticks = mimicMovementDelayMinTicks;
+        raw.mimic_movement_delay_max_ticks = mimicMovementDelayMaxTicks;
+        raw.mimic_damage_enabled = mimicDamageEnabled;
+        raw.mimic_damage = mimicDamage;
+        raw.mimic_max_hits_per_event = mimicMaxHitsPerEvent;
+        raw.mimic_chase_enabled = mimicChaseEnabled;
+        raw.mimic_chase_min_seconds = mimicChaseMinSeconds;
+        raw.mimic_chase_max_seconds = mimicChaseMaxSeconds;
+        raw.corrupted_echo_can_approach = corruptedEchoCanApproach;
+        raw.echo_moves_when_unobserved = echoMovesWhenUnobserved;
+        raw.echo_light_effects = echoLightEffects;
+        raw.echo_sound_effects = echoSoundEffects;
         return raw;
     }
 
@@ -129,7 +189,27 @@ public record EchoConfig(
                 raw.torch_flicker == null ? defaults.torchFlicker : raw.torch_flicker,
                 raw.sound_echoes == null ? defaults.soundEchoes : raw.sound_echoes,
                 raw.echo_opacity == null ? defaults.echoOpacity : raw.echo_opacity,
-                raw.debug_logging == null ? defaults.debugLogging : raw.debug_logging
+                raw.debug_logging == null ? defaults.debugLogging : raw.debug_logging,
+                raw.memory_echo_enabled == null ? defaults.memoryEchoEnabled : raw.memory_echo_enabled,
+                raw.corrupted_echo_enabled == null ? defaults.corruptedEchoEnabled : raw.corrupted_echo_enabled,
+                raw.mimic_echo_enabled == null ? defaults.mimicEchoEnabled : raw.mimic_echo_enabled,
+                raw.memory_echo_weight == null ? defaults.memoryEchoWeight : raw.memory_echo_weight,
+                raw.corrupted_echo_weight == null ? defaults.corruptedEchoWeight : raw.corrupted_echo_weight,
+                raw.mimic_echo_weight == null ? defaults.mimicEchoWeight : raw.mimic_echo_weight,
+                raw.mimic_minimum_stage_two_minutes == null ? defaults.mimicMinimumStageTwoMinutes : raw.mimic_minimum_stage_two_minutes,
+                raw.mimic_session_cooldown_minutes == null ? defaults.mimicSessionCooldownMinutes : raw.mimic_session_cooldown_minutes,
+                raw.mimic_movement_delay_min_ticks == null ? defaults.mimicMovementDelayMinTicks : raw.mimic_movement_delay_min_ticks,
+                raw.mimic_movement_delay_max_ticks == null ? defaults.mimicMovementDelayMaxTicks : raw.mimic_movement_delay_max_ticks,
+                raw.mimic_damage_enabled == null ? defaults.mimicDamageEnabled : raw.mimic_damage_enabled,
+                raw.mimic_damage == null ? defaults.mimicDamage : raw.mimic_damage,
+                raw.mimic_max_hits_per_event == null ? defaults.mimicMaxHitsPerEvent : raw.mimic_max_hits_per_event,
+                raw.mimic_chase_enabled == null ? defaults.mimicChaseEnabled : raw.mimic_chase_enabled,
+                raw.mimic_chase_min_seconds == null ? defaults.mimicChaseMinSeconds : raw.mimic_chase_min_seconds,
+                raw.mimic_chase_max_seconds == null ? defaults.mimicChaseMaxSeconds : raw.mimic_chase_max_seconds,
+                raw.corrupted_echo_can_approach == null ? defaults.corruptedEchoCanApproach : raw.corrupted_echo_can_approach,
+                raw.echo_moves_when_unobserved == null ? defaults.echoMovesWhenUnobserved : raw.echo_moves_when_unobserved,
+                raw.echo_light_effects == null ? defaults.echoLightEffects : raw.echo_light_effects,
+                raw.echo_sound_effects == null ? defaults.echoSoundEffects : raw.echo_sound_effects
         );
     }
 
@@ -153,5 +233,25 @@ public record EchoConfig(
         Boolean sound_echoes;
         Float echo_opacity;
         Boolean debug_logging;
+        Boolean memory_echo_enabled;
+        Boolean corrupted_echo_enabled;
+        Boolean mimic_echo_enabled;
+        Integer memory_echo_weight;
+        Integer corrupted_echo_weight;
+        Integer mimic_echo_weight;
+        Integer mimic_minimum_stage_two_minutes;
+        Integer mimic_session_cooldown_minutes;
+        Integer mimic_movement_delay_min_ticks;
+        Integer mimic_movement_delay_max_ticks;
+        Boolean mimic_damage_enabled;
+        Float mimic_damage;
+        Integer mimic_max_hits_per_event;
+        Boolean mimic_chase_enabled;
+        Integer mimic_chase_min_seconds;
+        Integer mimic_chase_max_seconds;
+        Boolean corrupted_echo_can_approach;
+        Boolean echo_moves_when_unobserved;
+        Boolean echo_light_effects;
+        Boolean echo_sound_effects;
     }
 }

@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:it_looked_back",
+  "display": {
+    "icon": {
+      "id": "minecraft:repeater"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.perfect_copy.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.perfect_copy.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

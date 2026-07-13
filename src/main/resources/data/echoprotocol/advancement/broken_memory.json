@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:corrupted_memory",
+  "display": {
+    "icon": {
+      "id": "minecraft:amethyst_shard"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.broken_memory.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.broken_memory.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}
