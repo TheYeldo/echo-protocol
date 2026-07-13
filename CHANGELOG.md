@@ -1,4 +1,37 @@
-# Echo Protocol v0.2.0-alpha
+# Echo Protocol v0.3.0-alpha
+
+## Added
+
+- Stage 3: The Original
+- Independent Original Echo behavior
+- Familiar-location tracking
+- Bed, storage, crafting, furnace, doorway, portal, idle-location, and manual location markers
+- Scripted observing, inhabiting, recognizing, replacing, confronting, and leaving states
+- Rare replacement events in familiar player locations
+- Optional target-only Original text events
+- Optional non-lethal confrontation damage
+- New administrator testing commands
+- Five new Stage 3 advancements
+- Persistent Stage 3 progress and cooldowns
+
+## Improved
+
+- Late-game psychological horror progression
+- Player familiarity tracking
+- Safe scripted Echo positioning
+- Server-authoritative privacy
+- Persistence of event counters and familiar locations
+
+## Known Limitations
+
+- The Original uses scripted movement rather than advanced navigation
+- Familiar locations are bounded heuristics and do not detect actual ownership
+- Mimic advancement progress completed before v0.3.0-alpha is not retroactively imported into Stage 3 progression
+- Recordings themselves are not preserved across server restarts
+
+## Previous Releases
+
+### Echo Protocol v0.2.0-alpha
 
 ## Added
 
@@ -33,8 +66,6 @@
 - Recordings are not preserved across server restarts
 - Sound design currently relies mostly on compatible vanilla sound events
 - Some menu and portal-state detection is limited by server-side information
-
-## Previous Releases
 
 ### 0.1.0
 

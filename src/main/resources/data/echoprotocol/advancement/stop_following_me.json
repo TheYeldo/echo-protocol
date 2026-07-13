@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:the_original",
+  "display": {
+    "icon": {
+      "id": "minecraft:written_book"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.stop_following_me.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.stop_following_me.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

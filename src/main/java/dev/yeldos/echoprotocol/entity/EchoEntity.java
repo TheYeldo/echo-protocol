@@ -103,6 +103,7 @@ public final class EchoEntity extends MobEntity {
             case MEMORY -> config.memoryEchoOpacity();
             case CORRUPTED -> config.corruptedEchoOpacity();
             case MIMIC -> config.mimicEchoOpacity();
+            case ORIGINAL -> config.originalNearFullOpacity();
         };
         this.dataTracker.set(OPACITY, 0.0F);
         if (!frames.isEmpty()) {

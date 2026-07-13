@@ -10,9 +10,12 @@ import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.recording.SoundMarker;
 import dev.yeldos.echoprotocol.sound.EchoSoundPlayer;
 import dev.yeldos.echoprotocol.stage.EchoStage;
+import dev.yeldos.echoprotocol.stage.FamiliarLocation;
+import dev.yeldos.echoprotocol.stage.FamiliarLocationType;
 import dev.yeldos.echoprotocol.stage.PlayerEchoState;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
+import net.minecraft.item.ItemStack;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -46,6 +49,17 @@ public final class EchoEventDirector {
         cleanupActiveEchoes();
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             PlayerEchoState state = stageManager.state(player.getUuid());
+            if (state.stage() == EchoStage.THE_ORIGINAL && config.originalEnabled()) {
+                if (state.nextOriginalEventTick() <= 0L) {
+                    stageManager.scheduleNextOriginalEvent(state, config);
+                } else if (stageManager.tick() >= state.nextOriginalEventTick() && canRunEvent(player, state)) {
+                    boolean spawnedOriginal = spawnOriginal(player, false, null, config);
+                    stageManager.scheduleNextOriginalEvent(state, config);
+                    if (spawnedOriginal) {
+                        continue;
+                    }
+                }
+            }
             if (state.stage() == EchoStage.OBSERVATION || !canRunEvent(player, state)) {
                 continue;
             }
@@ -115,6 +129,7 @@ public final class EchoEventDirector {
         EchoSoundPlayer.playSpawnProfile(target, type, config, pos);
 
         state.incrementTotalEvents();
+        state.incrementEchoEvent(type);
         stageManager.grant(target, "deja_vu");
         if (type == EchoType.MEMORY) {
             stageManager.grant(target, "that_was_me");
@@ -198,14 +213,15 @@ public final class EchoEventDirector {
         return switch (type) {
             case MEMORY -> config.memoryEchoEnabled() && state.stage().id() >= EchoStage.DEJA_VU.id();
             case CORRUPTED -> config.corruptedEchoEnabled()
-                    && state.stage() == EchoStage.CORRUPTED_MEMORY
+                    && state.stage().id() >= EchoStage.CORRUPTED_MEMORY.id()
                     && state.stageOneEvents() >= 2;
             case MIMIC -> config.mimicEchoEnabled()
-                    && state.stage() == EchoStage.CORRUPTED_MEMORY
+                    && state.stage().id() >= EchoStage.CORRUPTED_MEMORY.id()
                     && state.playTicks() >= (long) (config.stageTwoMinutes() + config.mimicMinimumStageTwoMinutes()) * 60L * 20L
                     && !mimicSpawnedThisSession.contains(target.getUuid())
                     && stageManager.tick() - lastGlobalMimicTick >= (long) config.mimicSessionCooldownMinutes() * 60L * 20L
                     && stageManager.tick() - lastMimicTick.getOrDefault(target.getUuid(), -9999999L) >= (long) config.mimicSessionCooldownMinutes() * 60L * 20L;
+            case ORIGINAL -> config.originalEnabled() && state.stage() == EchoStage.THE_ORIGINAL;
         };
     }
 
@@ -214,7 +230,68 @@ public final class EchoEventDirector {
             case MEMORY -> new MemoryEchoBehavior();
             case CORRUPTED -> new CorruptedEchoBehavior(context);
             case MIMIC -> new MimicEchoBehavior(context);
+            case ORIGINAL -> throw new IllegalArgumentException("Original Echo uses spawnOriginal.");
         };
+    }
+
+    public boolean spawnOriginal(ServerPlayerEntity target, boolean forced, OriginalEventKind requestedEvent, EchoConfig config) {
+        if (!config.originalEnabled()) {
+            return false;
+        }
+        cleanupActiveEchoes();
+        PlayerEchoState state = stageManager.state(target.getUuid());
+        if (!forced && state.stage() != EchoStage.THE_ORIGINAL) {
+            return false;
+        }
+        if (state.activeEvent()) {
+            if (!forced) {
+                return false;
+            }
+            stopEvents(target);
+        }
+        if (activeOriginalCount(target) >= config.originalMaximumActivePerPlayer()) {
+            return false;
+        }
+        ServerWorld world = target.getServerWorld();
+        FamiliarLocation location = chooseOriginalLocation(target, config).orElse(null);
+        Vec3d anchor = location == null ? target.getPos() : location.pos().toCenterPos();
+        OriginalEventKind eventKind = requestedEvent == null ? chooseOriginalEvent(location) : requestedEvent;
+        Optional<Vec3d> spawnPos = SafeEchoPositionFinder.findSpawn(world, target, anchor, config);
+        if (spawnPos.isEmpty()) {
+            spawnPos = SafeEchoPositionFinder.findSpawn(world, target,
+                    target.getPos().subtract(target.getRotationVec(1.0F).multiply(config.minimumEchoSpawnDistance())), config);
+        }
+        if (spawnPos.isEmpty()) {
+            return false;
+        }
+
+        PlayerRecording recording = recordingManager.get(target.getUuid());
+        RecordedFrame frame = recording != null && recording.latest() != null
+                ? recording.latest()
+                : RecordedFrame.capture(target, stageManager.tick(), null);
+        ItemStack heldItem = chooseFamiliarItem(recording, target);
+        EchoEntity echo = new EchoEntity(EchoEntities.ECHO, world);
+        EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, false);
+        EchoBehaviorController behavior = new OriginalEchoBehavior(context, eventKind, anchor, heldItem);
+        echo.configure(target.getUuid(), config.sharedEchoes(), List.of(frame), config.recordingSampleIntervalTicks(), config, context, behavior);
+        Vec3d pos = spawnPos.get();
+        echo.refreshPositionAndAngles(pos.x, pos.y, pos.z, target.bodyYaw + 180.0F, target.getPitch());
+        echo.setHeldItemVisual(heldItem);
+        world.spawnEntity(echo);
+        activeEchoes.computeIfAbsent(target.getUuid(), ignored -> new ArrayList<>()).add(echo);
+        state.setActiveEvent(true);
+        state.incrementTotalEvents();
+        state.incrementEchoEvent(EchoType.ORIGINAL);
+        EchoSoundPlayer.playSpawnProfile(target, EchoType.ORIGINAL, config, pos);
+        stageManager.grant(target, "my_place");
+        if (eventKind == OriginalEventKind.ALREADY_HOME || eventKind == OriginalEventKind.YOUR_BED) {
+            stageManager.grant(target, "already_home");
+        }
+        return true;
+    }
+
+    public boolean spawnOriginalConfrontation(ServerPlayerEntity target, EchoConfig config) {
+        return spawnOriginal(target, true, OriginalEventKind.CONFRONTATION, config);
     }
 
     public int stopEvents(ServerPlayerEntity target) {
@@ -248,6 +325,60 @@ public final class EchoEventDirector {
 
     public void playDebugSound(ServerPlayerEntity target, EchoType type) {
         EchoSoundPlayer.playSpawnProfile(target, type, EchoProtocol.config(), target.getPos());
+    }
+
+    private int activeOriginalCount(ServerPlayerEntity target) {
+        List<EchoEntity> echoes = activeEchoes.getOrDefault(target.getUuid(), List.of());
+        int count = 0;
+        for (EchoEntity echo : echoes) {
+            if (!echo.isRemoved() && echo.echoType() == EchoType.ORIGINAL) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private Optional<FamiliarLocation> chooseOriginalLocation(ServerPlayerEntity target, EchoConfig config) {
+        if (!config.originalFamiliarLocationsEnabled()) {
+            return Optional.empty();
+        }
+        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        return stageManager.familiarLocations(target).stream()
+                .filter(location -> location.dimension().equals(dimension))
+                .filter(location -> target.getServerWorld().isChunkLoaded(location.pos()))
+                .filter(location -> location.pos().getSquaredDistance(target.getBlockPos()) <= 96.0D * 96.0D)
+                .sorted((left, right) -> Integer.compare(right.visits(), left.visits()))
+                .findFirst();
+    }
+
+    private static OriginalEventKind chooseOriginalEvent(FamiliarLocation location) {
+        if (ThreadLocalRandom.current().nextInt(12) == 0) {
+            return OriginalEventKind.CONFRONTATION;
+        }
+        if (location == null) {
+            return OriginalEventKind.WAITING;
+        }
+        FamiliarLocationType type = location.type();
+        return switch (type) {
+            case BED -> OriginalEventKind.YOUR_BED;
+            case CHEST -> OriginalEventKind.WRONG_OWNER;
+            case CRAFTING, FURNACE, IDLE, MANUAL, HOME -> OriginalEventKind.OCCUPIED_PLACE;
+            case DOORWAY -> OriginalEventKind.EMPTY_ROOM;
+            case PORTAL, MINE_ENTRANCE -> OriginalEventKind.EARLIER_THAN_YOU;
+        };
+    }
+
+    private static ItemStack chooseFamiliarItem(PlayerRecording recording, ServerPlayerEntity target) {
+        if (recording != null) {
+            List<RecordedFrame> frames = recording.frames();
+            for (int i = frames.size() - 1; i >= 0; i--) {
+                ItemStack stack = frames.get(i).heldItemVisual();
+                if (!stack.isEmpty()) {
+                    return stack.copyWithCount(1);
+                }
+            }
+        }
+        return target.getMainHandStack().copyWithCount(Math.min(1, target.getMainHandStack().getCount()));
     }
 
     private void cleanupActiveEchoes() {

@@ -14,5 +14,13 @@
   "mimic_threat": {
     "subtitle": "subtitles.echoprotocol.mimic_threat",
     "sounds": []
+  },
+  "original_presence": {
+    "subtitle": "subtitles.echoprotocol.original_presence",
+    "sounds": []
+  },
+  "original_confront": {
+    "subtitle": "subtitles.echoprotocol.original_confront",
+    "sounds": []
   }
 }

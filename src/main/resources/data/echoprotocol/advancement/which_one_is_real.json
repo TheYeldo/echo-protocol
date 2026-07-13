@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:the_original",
+  "display": {
+    "icon": {
+      "id": "minecraft:recovery_compass"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.which_one_is_real.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.which_one_is_real.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

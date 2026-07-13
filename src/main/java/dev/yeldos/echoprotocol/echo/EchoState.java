@@ -10,5 +10,11 @@ public enum EchoState {
     HIDING,
     THREATENING,
     FADING,
-    DISAPPEARING
+    DISAPPEARING,
+    ABSENT,
+    INHABITING,
+    RECOGNIZING,
+    REPLACING,
+    CONFRONTING,
+    LEAVING
 }

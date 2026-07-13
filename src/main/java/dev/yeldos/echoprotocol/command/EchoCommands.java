@@ -1,12 +1,15 @@
 package dev.yeldos.echoprotocol.command;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.echo.EchoEventDirector;
 import dev.yeldos.echoprotocol.echo.EchoType;
+import dev.yeldos.echoprotocol.echo.OriginalEventKind;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.stage.EchoStage;
+import dev.yeldos.echoprotocol.stage.FamiliarLocation;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -14,6 +17,10 @@ import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 public final class EchoCommands {
     private EchoCommands() {
@@ -34,7 +41,7 @@ public final class EchoCommands {
                                                 })))
                                 .then(CommandManager.literal("set")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
-                                                .then(CommandManager.argument("stage", IntegerArgumentType.integer(0, 2))
+                                                .then(CommandManager.argument("stage", IntegerArgumentType.integer(0, 3))
                                                         .executes(context -> {
                                                             ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
                                                             int stage = IntegerArgumentType.getInteger(context, "stage");
@@ -72,6 +79,59 @@ public final class EchoCommands {
                                 .then(CommandManager.literal("harmless")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
                                                 .executes(context -> setMimicMode(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, false)))))
+                        .then(CommandManager.literal("original")
+                                .then(CommandManager.literal("spawn")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> forceOriginal(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, null))))
+                                .then(CommandManager.literal("event")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .then(CommandManager.argument("event", StringArgumentType.word())
+                                                        .executes(context -> forceOriginalEvent(context.getSource(), EntityArgumentType.getPlayer(context, "player"),
+                                                                director, StringArgumentType.getString(context, "event"))))))
+                                .then(CommandManager.literal("confront")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    if (director.spawnOriginalConfrontation(player, EchoProtocol.config())) {
+                                                        context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.original_confront",
+                                                                player.getName().getString()), true);
+                                                        return 1;
+                                                    }
+                                                    context.getSource().sendError(Text.translatable("text.echoprotocol.command.original_failed",
+                                                            player.getName().getString()));
+                                                    return 0;
+                                                })))
+                                .then(CommandManager.literal("stop")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    int stopped = director.stopEvents(player);
+                                                    context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.original_stop",
+                                                            player.getName().getString(), stopped), true);
+                                                    return stopped;
+                                                }))))
+                        .then(CommandManager.literal("familiar")
+                                .then(CommandManager.literal("list")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> listFamiliar(context.getSource(), EntityArgumentType.getPlayer(context, "player"), stageManager))))
+                                .then(CommandManager.literal("clear")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    int cleared = stageManager.clearFamiliarLocations(player);
+                                                    context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.familiar_clear",
+                                                            player.getName().getString(), cleared), true);
+                                                    return cleared;
+                                                })))
+                                .then(CommandManager.literal("add-current")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    int count = stageManager.addCurrentFamiliarLocation(player, EchoProtocol.config());
+                                                    context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.familiar_add_current",
+                                                            player.getName().getString(), count), true);
+                                                    return 1;
+                                                }))))
                         .then(CommandManager.literal("skin")
                                 .then(CommandManager.literal("status")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
@@ -189,6 +249,49 @@ public final class EchoCommands {
         }
         source.sendError(Text.translatable("text.echoprotocol.command.no_active_mimic", player.getName().getString()));
         return 0;
+    }
+
+    private static int forceOriginal(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                     EchoEventDirector director, OriginalEventKind eventKind) {
+        if (director.spawnOriginal(player, true, eventKind, EchoProtocol.config())) {
+            source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.original_spawn",
+                    player.getName().getString(), eventKind == null ? "auto" : eventKind.commandName()), true);
+            return 1;
+        }
+        source.sendError(Text.translatable("text.echoprotocol.command.original_failed", player.getName().getString()));
+        return 0;
+    }
+
+    private static int forceOriginalEvent(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                          EchoEventDirector director, String eventName) {
+        try {
+            return forceOriginal(source, player, director, OriginalEventKind.fromCommand(eventName));
+        } catch (IllegalArgumentException exception) {
+            String allowed = java.util.Arrays.stream(OriginalEventKind.values())
+                    .map(OriginalEventKind::commandName)
+                    .collect(Collectors.joining(", "));
+            source.sendError(Text.translatable("text.echoprotocol.command.original_unknown_event", eventName, allowed));
+            return 0;
+        }
+    }
+
+    private static int listFamiliar(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                    StageManager stageManager) {
+        List<FamiliarLocation> locations = stageManager.familiarLocations(player);
+        if (locations.isEmpty()) {
+            source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.familiar_empty",
+                    player.getName().getString()), false);
+            return 0;
+        }
+        String preview = locations.stream()
+                .limit(8)
+                .map(location -> String.format(Locale.ROOT, "%s %s %d,%d,%d visits=%d",
+                        location.type().name().toLowerCase(Locale.ROOT), location.dimension(),
+                        location.pos().getX(), location.pos().getY(), location.pos().getZ(), location.visits()))
+                .collect(Collectors.joining("; "));
+        source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.familiar_list",
+                player.getName().getString(), locations.size(), preview), false);
+        return locations.size();
     }
 
     private static int testSound(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,

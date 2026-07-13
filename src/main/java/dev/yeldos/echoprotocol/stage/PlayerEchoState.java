@@ -1,14 +1,24 @@
 package dev.yeldos.echoprotocol.stage;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class PlayerEchoState {
     private EchoStage stage = EchoStage.OBSERVATION;
     private long playTicks;
     private long nextEventTick;
+    private long nextOriginalEventTick;
     private long lastJoinTick;
     private long lastRespawnTick;
     private int stageOneEvents;
     private int totalEvents;
+    private int memoryEvents;
+    private int corruptedEvents;
+    private int mimicEvents;
+    private int originalEvents;
+    private boolean mimicIndependentActionSeen;
     private boolean activeEvent;
+    private final List<FamiliarLocation> familiarLocations = new ArrayList<>();
 
     public EchoStage stage() {
         return stage;
@@ -36,6 +46,14 @@ public final class PlayerEchoState {
 
     public void setNextEventTick(long nextEventTick) {
         this.nextEventTick = nextEventTick;
+    }
+
+    public long nextOriginalEventTick() {
+        return nextOriginalEventTick;
+    }
+
+    public void setNextOriginalEventTick(long nextOriginalEventTick) {
+        this.nextOriginalEventTick = Math.max(0L, nextOriginalEventTick);
     }
 
     public long lastJoinTick() {
@@ -78,11 +96,68 @@ public final class PlayerEchoState {
         this.totalEvents = Math.max(0, totalEvents);
     }
 
+    public int memoryEvents() {
+        return memoryEvents;
+    }
+
+    public void setMemoryEvents(int memoryEvents) {
+        this.memoryEvents = Math.max(0, memoryEvents);
+    }
+
+    public int corruptedEvents() {
+        return corruptedEvents;
+    }
+
+    public void setCorruptedEvents(int corruptedEvents) {
+        this.corruptedEvents = Math.max(0, corruptedEvents);
+    }
+
+    public int mimicEvents() {
+        return mimicEvents;
+    }
+
+    public void setMimicEvents(int mimicEvents) {
+        this.mimicEvents = Math.max(0, mimicEvents);
+    }
+
+    public int originalEvents() {
+        return originalEvents;
+    }
+
+    public void incrementOriginalEvents() {
+        originalEvents++;
+    }
+
+    public void setOriginalEvents(int originalEvents) {
+        this.originalEvents = Math.max(0, originalEvents);
+    }
+
+    public boolean mimicIndependentActionSeen() {
+        return mimicIndependentActionSeen;
+    }
+
+    public void setMimicIndependentActionSeen(boolean mimicIndependentActionSeen) {
+        this.mimicIndependentActionSeen = mimicIndependentActionSeen;
+    }
+
+    public void incrementEchoEvent(dev.yeldos.echoprotocol.echo.EchoType type) {
+        switch (type) {
+            case MEMORY -> memoryEvents++;
+            case CORRUPTED -> corruptedEvents++;
+            case MIMIC -> mimicEvents++;
+            case ORIGINAL -> originalEvents++;
+        }
+    }
+
     public boolean activeEvent() {
         return activeEvent;
     }
 
     public void setActiveEvent(boolean activeEvent) {
         this.activeEvent = activeEvent;
+    }
+
+    public List<FamiliarLocation> familiarLocations() {
+        return familiarLocations;
     }
 }
