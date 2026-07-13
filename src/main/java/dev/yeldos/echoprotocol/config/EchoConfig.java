@@ -67,7 +67,23 @@ public record EchoConfig(
         boolean staticEffectsEnabled,
         int safeSpawnAttempts,
         int minimumEchoSpawnDistance,
-        int maximumEchoSpawnDistance
+        int maximumEchoSpawnDistance,
+        boolean stageThreeEnabled,
+        int stageThreeRequiredPlaytimeMinutes,
+        int stageThreeRequiredMemoryEvents,
+        int stageThreeRequiredCorruptedEvents,
+        int stageThreeRequiredMimicEvents,
+        boolean originalEnabled,
+        int originalFirstEventDelayMinutes,
+        int originalMinimumEventIntervalMinutes,
+        int originalMaximumEventIntervalMinutes,
+        boolean originalFamiliarLocationsEnabled,
+        boolean originalTextEvents,
+        boolean originalDamageEnabled,
+        float originalDamage,
+        int originalMaximumActivePerPlayer,
+        int originalMaximumFamiliarLocations,
+        float originalNearFullOpacity
 ) {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("echo_protocol.json");
@@ -76,7 +92,9 @@ public record EchoConfig(
         return new EchoConfig(true, 2, 10, 5, 15, 10, 60, 480, 1080, false, false, true, true, 0.45F, false,
                 true, true, true, 70, 25, 5, 30, 60, 40, 80, true, 4.0F, 1, true, 5, 10, true, true, true, true,
                 true, true, 0.42F, 0.48F, 0.58F, 0.90F, true, true, 0.65F, false, true,
-                0.75F, 0.55F, 0.70F, 0.80F, true, true, 16, 8, 32);
+                0.75F, 0.55F, 0.70F, 0.80F, true, true, 16, 8, 32,
+                true, 180, 8, 4, 2, true, 20, 60, 150, true, false, false,
+                4.0F, 1, 16, 0.94F);
     }
 
     public static EchoConfig load() {
@@ -106,7 +124,12 @@ public record EchoConfig(
                 mimicThreateningOpacity, corruptionFlickerEnabled, corruptionAfterimagesEnabled,
                 corruptionVisualIntensity, reducedVisualEffects, reducedFlashing, echoMasterVolume,
                 memoryEchoVolume, corruptedEchoVolume, mimicEchoVolume, breathingEnabled, staticEffectsEnabled,
-                safeSpawnAttempts, minimumEchoSpawnDistance, maximumEchoSpawnDistance).validate();
+                safeSpawnAttempts, minimumEchoSpawnDistance, maximumEchoSpawnDistance, stageThreeEnabled,
+                stageThreeRequiredPlaytimeMinutes, stageThreeRequiredMemoryEvents, stageThreeRequiredCorruptedEvents,
+                stageThreeRequiredMimicEvents, originalEnabled, originalFirstEventDelayMinutes,
+                originalMinimumEventIntervalMinutes, originalMaximumEventIntervalMinutes,
+                originalFamiliarLocationsEnabled, originalTextEvents, originalDamageEnabled, originalDamage,
+                originalMaximumActivePerPlayer, originalMaximumFamiliarLocations, originalNearFullOpacity).validate();
         updated.save();
         return updated;
     }
@@ -160,6 +183,17 @@ public record EchoConfig(
         int attempts = clamp(safeSpawnAttempts, 1, 64);
         int minDistance = clamp(minimumEchoSpawnDistance, 2, 64);
         int maxDistance = clamp(Math.max(maximumEchoSpawnDistance, minDistance), minDistance, 128);
+        int stageThreePlaytime = clamp(stageThreeRequiredPlaytimeMinutes, 0, 10080);
+        int stageThreeMemory = clamp(stageThreeRequiredMemoryEvents, 0, 1000);
+        int stageThreeCorrupted = clamp(stageThreeRequiredCorruptedEvents, 0, 1000);
+        int stageThreeMimic = clamp(stageThreeRequiredMimicEvents, 0, 1000);
+        int originalFirstDelay = clamp(originalFirstEventDelayMinutes, 1, 1440);
+        int originalMinInterval = clamp(originalMinimumEventIntervalMinutes, 5, 10080);
+        int originalMaxInterval = clamp(Math.max(originalMaximumEventIntervalMinutes, originalMinInterval), originalMinInterval, 10080);
+        float originalSafeDamage = clampFloat(originalDamage, 0.0F, 20.0F);
+        int originalMaxActive = clamp(originalMaximumActivePerPlayer, 1, 3);
+        int originalMaxLocations = clamp(originalMaximumFamiliarLocations, 4, 64);
+        float originalOpacity = clampFloat(originalNearFullOpacity, 0.5F, 1.0F);
         return new EchoConfig(enabled, sample, history, minReplay, maxReplay, stageZero, stageTwo, minInterval,
                 maxInterval, sharedEchoes, chatEchoes, torchFlicker, soundEchoes, opacity, debugLogging,
                 memoryEchoEnabled, corruptedEchoEnabled, mimicEchoEnabled, memoryWeight, corruptedWeight, mimicWeight,
@@ -168,7 +202,11 @@ public record EchoConfig(
                 echoLightEffects, echoSoundEffects, realPlayerSkins, skinCacheEnabled, memoryOpacity,
                 corruptedOpacity, mimicOpacity, threatOpacity, corruptionFlickerEnabled, corruptionAfterimagesEnabled,
                 visualIntensity, reducedVisualEffects, reducedFlashing, masterVolume, memoryVolume, corruptedVolume,
-                mimicVolume, breathingEnabled, staticEffectsEnabled, attempts, minDistance, maxDistance);
+                mimicVolume, breathingEnabled, staticEffectsEnabled, attempts, minDistance, maxDistance,
+                stageThreeEnabled, stageThreePlaytime, stageThreeMemory, stageThreeCorrupted, stageThreeMimic,
+                originalEnabled, originalFirstDelay, originalMinInterval, originalMaxInterval,
+                originalFamiliarLocationsEnabled, originalTextEvents, originalDamageEnabled, originalSafeDamage,
+                originalMaxActive, originalMaxLocations, originalOpacity);
     }
 
     private Raw toRaw() {
@@ -228,6 +266,22 @@ public record EchoConfig(
         raw.safe_spawn_attempts = safeSpawnAttempts;
         raw.minimum_echo_spawn_distance = minimumEchoSpawnDistance;
         raw.maximum_echo_spawn_distance = maximumEchoSpawnDistance;
+        raw.stage_three_enabled = stageThreeEnabled;
+        raw.stage_three_required_playtime_minutes = stageThreeRequiredPlaytimeMinutes;
+        raw.stage_three_required_memory_events = stageThreeRequiredMemoryEvents;
+        raw.stage_three_required_corrupted_events = stageThreeRequiredCorruptedEvents;
+        raw.stage_three_required_mimic_events = stageThreeRequiredMimicEvents;
+        raw.original_enabled = originalEnabled;
+        raw.original_first_event_delay_minutes = originalFirstEventDelayMinutes;
+        raw.original_minimum_event_interval_minutes = originalMinimumEventIntervalMinutes;
+        raw.original_maximum_event_interval_minutes = originalMaximumEventIntervalMinutes;
+        raw.original_familiar_locations_enabled = originalFamiliarLocationsEnabled;
+        raw.original_text_events = originalTextEvents;
+        raw.original_damage_enabled = originalDamageEnabled;
+        raw.original_damage = originalDamage;
+        raw.original_maximum_active_per_player = originalMaximumActivePerPlayer;
+        raw.original_maximum_familiar_locations = originalMaximumFamiliarLocations;
+        raw.original_near_full_opacity = originalNearFullOpacity;
         return raw;
     }
 
@@ -291,7 +345,23 @@ public record EchoConfig(
                 raw.static_effects_enabled == null ? defaults.staticEffectsEnabled : raw.static_effects_enabled,
                 raw.safe_spawn_attempts == null ? defaults.safeSpawnAttempts : raw.safe_spawn_attempts,
                 raw.minimum_echo_spawn_distance == null ? defaults.minimumEchoSpawnDistance : raw.minimum_echo_spawn_distance,
-                raw.maximum_echo_spawn_distance == null ? defaults.maximumEchoSpawnDistance : raw.maximum_echo_spawn_distance
+                raw.maximum_echo_spawn_distance == null ? defaults.maximumEchoSpawnDistance : raw.maximum_echo_spawn_distance,
+                raw.stage_three_enabled == null ? defaults.stageThreeEnabled : raw.stage_three_enabled,
+                raw.stage_three_required_playtime_minutes == null ? defaults.stageThreeRequiredPlaytimeMinutes : raw.stage_three_required_playtime_minutes,
+                raw.stage_three_required_memory_events == null ? defaults.stageThreeRequiredMemoryEvents : raw.stage_three_required_memory_events,
+                raw.stage_three_required_corrupted_events == null ? defaults.stageThreeRequiredCorruptedEvents : raw.stage_three_required_corrupted_events,
+                raw.stage_three_required_mimic_events == null ? defaults.stageThreeRequiredMimicEvents : raw.stage_three_required_mimic_events,
+                raw.original_enabled == null ? defaults.originalEnabled : raw.original_enabled,
+                raw.original_first_event_delay_minutes == null ? defaults.originalFirstEventDelayMinutes : raw.original_first_event_delay_minutes,
+                raw.original_minimum_event_interval_minutes == null ? defaults.originalMinimumEventIntervalMinutes : raw.original_minimum_event_interval_minutes,
+                raw.original_maximum_event_interval_minutes == null ? defaults.originalMaximumEventIntervalMinutes : raw.original_maximum_event_interval_minutes,
+                raw.original_familiar_locations_enabled == null ? defaults.originalFamiliarLocationsEnabled : raw.original_familiar_locations_enabled,
+                raw.original_text_events == null ? defaults.originalTextEvents : raw.original_text_events,
+                raw.original_damage_enabled == null ? defaults.originalDamageEnabled : raw.original_damage_enabled,
+                raw.original_damage == null ? defaults.originalDamage : raw.original_damage,
+                raw.original_maximum_active_per_player == null ? defaults.originalMaximumActivePerPlayer : raw.original_maximum_active_per_player,
+                raw.original_maximum_familiar_locations == null ? defaults.originalMaximumFamiliarLocations : raw.original_maximum_familiar_locations,
+                raw.original_near_full_opacity == null ? defaults.originalNearFullOpacity : raw.original_near_full_opacity
         );
     }
 
@@ -359,5 +429,21 @@ public record EchoConfig(
         Integer safe_spawn_attempts;
         Integer minimum_echo_spawn_distance;
         Integer maximum_echo_spawn_distance;
+        Boolean stage_three_enabled;
+        Integer stage_three_required_playtime_minutes;
+        Integer stage_three_required_memory_events;
+        Integer stage_three_required_corrupted_events;
+        Integer stage_three_required_mimic_events;
+        Boolean original_enabled;
+        Integer original_first_event_delay_minutes;
+        Integer original_minimum_event_interval_minutes;
+        Integer original_maximum_event_interval_minutes;
+        Boolean original_familiar_locations_enabled;
+        Boolean original_text_events;
+        Boolean original_damage_enabled;
+        Float original_damage;
+        Integer original_maximum_active_per_player;
+        Integer original_maximum_familiar_locations;
+        Float original_near_full_opacity;
     }
 }

@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:the_original",
+  "display": {
+    "icon": {
+      "id": "minecraft:red_bed"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.already_home.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.already_home.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

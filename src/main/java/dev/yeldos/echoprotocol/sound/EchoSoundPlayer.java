@@ -36,6 +36,10 @@ public final class EchoSoundPlayer {
                 }
                 play(target, "mimic_pulse", SoundEvents.BLOCK_SCULK_SHRIEKER_SHRIEK, config, pos, config.mimicEchoVolume() * 0.25F, 0.55F, 160);
             }
+            case ORIGINAL -> {
+                play(target, "original_arrive", SoundEvents.BLOCK_RESPAWN_ANCHOR_AMBIENT, config, pos, 0.42F, 0.55F, 200);
+                play(target, "original_presence", SoundEvents.BLOCK_WOODEN_DOOR_CLOSE, config, pos, 0.18F, 0.65F, 100);
+            }
         }
     }
 
@@ -47,8 +51,18 @@ public final class EchoSoundPlayer {
         play(target, "threat", SoundEvents.ENTITY_WARDEN_HEARTBEAT, config, pos, config.mimicEchoVolume() * 0.55F, 0.7F, 80);
     }
 
+    public static void playOriginalConfrontation(ServerPlayerEntity target, EchoConfig config, Vec3d pos) {
+        play(target, "original_confront", SoundEvents.ENTITY_WARDEN_HEARTBEAT, config, pos, 0.35F, 0.45F, 200);
+        play(target, "original_darkness", SoundEvents.BLOCK_RESPAWN_ANCHOR_DEPLETE.value(), config, pos, 0.25F, 0.5F, 200);
+    }
+
     public static void playDisappear(ServerPlayerEntity target, EchoType type, EchoConfig config, Vec3d pos) {
-        float volume = type == EchoType.MEMORY ? config.memoryEchoVolume() : type == EchoType.CORRUPTED ? config.corruptedEchoVolume() : config.mimicEchoVolume();
+        float volume = switch (type) {
+            case MEMORY -> config.memoryEchoVolume();
+            case CORRUPTED -> config.corruptedEchoVolume();
+            case MIMIC -> config.mimicEchoVolume();
+            case ORIGINAL -> 0.55F;
+        };
         play(target, "disappear_" + type.name(), SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, config, pos, volume * 0.35F, 0.7F, 60);
     }
 
