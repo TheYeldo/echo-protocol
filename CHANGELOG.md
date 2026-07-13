@@ -2,28 +2,32 @@
 
 ## Added
 
-- Stage 3: The Original, a rare late-game psychological horror stage.
-- The Original Echo type with independent scripted behavior.
-- Familiar-location tracking for beds, chests, crafting areas, furnaces, doors, idle spots, portals, and manual admin markers.
-- Rare Original replacement events, including occupied-place, already-home, wrong-owner, waiting, empty-room, and confrontation sequences.
-- Optional target-only Original text events, disabled by default.
-- Optional controlled Original confrontation damage, disabled by default and never lethal.
-- Stage 3 progression persistence across logout, world reload, and server restart.
-- New Stage 3 administrator commands and familiar-location commands.
-- New Stage 3 advancements and English/Russian localization.
+- Stage 3: The Original
+- Independent Original Echo behavior
+- Familiar-location tracking
+- Bed, storage, crafting, furnace, doorway, portal, idle-location, and manual location markers
+- Scripted observing, inhabiting, recognizing, replacing, confronting, and leaving states
+- Rare replacement events in familiar player locations
+- Optional target-only Original text events
+- Optional non-lethal confrontation damage
+- New administrator testing commands
+- Five new Stage 3 advancements
+- Persistent Stage 3 progress and cooldowns
 
 ## Improved
 
-- Stage tracking now records bounded per-type Echo event counts.
-- Existing Memory, Corrupted, and Mimic systems remain available after Stage 3 unlock.
-- Multiplayer privacy rules now explicitly cover Original sounds, particles, text, and familiar-location data.
+- Late-game psychological horror progression
+- Player familiarity tracking
+- Safe scripted Echo positioning
+- Server-authoritative privacy
+- Persistence of event counters and familiar locations
 
 ## Known Limitations
 
-- The Original uses scripted safe-position movement rather than advanced navigation.
-- Familiar locations are lightweight heuristics and do not infer protected claims or detailed room ownership.
-- Original sound design currently relies on compatible vanilla sound events.
-- The feature branch is intended for manual gameplay testing before merge, tag, or release.
+- The Original uses scripted movement rather than advanced navigation
+- Familiar locations are bounded heuristics and do not detect actual ownership
+- Mimic advancement progress completed before v0.3.0-alpha is not retroactively imported into Stage 3 progression
+- Recordings themselves are not preserved across server restarts
 
 ## Previous Releases
 
