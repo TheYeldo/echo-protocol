@@ -2,9 +2,13 @@ package dev.yeldos.echoprotocol.echo;
 
 import dev.yeldos.echoprotocol.entity.EchoEntity;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
+import dev.yeldos.echoprotocol.rendering.EchoVisualEffects;
+import dev.yeldos.echoprotocol.sound.EchoSoundPlayer;
 import dev.yeldos.echoprotocol.util.EchoVisibility;
+import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.List;
@@ -17,6 +21,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
     private int stateAge;
     private int replayCursor;
     private ItemStack wrongItem = ItemStack.EMPTY;
+    private Vec3d hidingSpot;
 
     public CorruptedEchoBehavior(EchoEventContext context) {
         this.context = context;
@@ -76,6 +81,13 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         if (!wrongItem.isEmpty()) {
             echo.setHeldItemVisual(wrongItem);
         }
+        if (context.config().corruptionFlickerEnabled() && !context.config().reducedFlashing()) {
+            float flicker = 0.32F + (float) Math.sin((echo.age + stateAge) * 0.55F) * 0.08F * context.config().corruptionVisualIntensity();
+            echo.setReplayOpacity(flicker);
+        }
+        if (stateAge % 18 == 0) {
+            EchoVisualEffects.corruptedAfterimage(target, context.config(), echo.getPos());
+        }
         if (stateAge > 35) {
             context.stageManager().grant(target, "it_looked_back");
             transition(EchoState.WATCHING, echo);
@@ -107,9 +119,14 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
 
     private void tickHiding(EchoEntity echo, ServerPlayerEntity target) {
         echo.lookAtTarget(0.08F);
-        if (context.config().echoMovesWhenUnobserved() && EchoVisibility.isBehindPlayer(target, echo)) {
-            Vec3d side = target.getPos().add(target.getRotationVec(1.0F).multiply(-4.0D));
-            echo.moveToward(side, 0.09D);
+        if (stateAge == 1 && echo.getWorld() instanceof ServerWorld world) {
+            hidingSpot = SafeEchoPositionFinder.findHidden(world, target, echo.getPos(), context.config()).orElse(null);
+        }
+        boolean observed = EchoVisibility.isLookingAt(target, echo, 0.70D);
+        if (context.config().echoMovesWhenUnobserved() && !observed && hidingSpot != null) {
+            if (echo.moveToward(hidingSpot, 0.11D)) {
+                context.stageManager().grant(target, "behind_you");
+            }
         }
         echo.setReplayOpacity(Math.max(0.05F, 0.35F - stateAge / 120.0F));
         if (stateAge > 70) {
@@ -121,6 +138,8 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         echo.lookAtTarget(0.05F);
         echo.setReplayOpacity(Math.max(0.0F, 0.35F - stateAge / 35.0F));
         if (stateAge > 35) {
+            EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.CORRUPTED, context.config(), echo.getPos());
+            EchoVisualEffects.disappear(echo.getTargetPlayer(), context.config(), echo.getPos());
             echo.finishAndDiscard();
         }
     }

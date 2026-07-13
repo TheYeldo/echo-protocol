@@ -13,7 +13,15 @@
   "text.echoprotocol.command.mimic_hostile": "Активный Мимик %s переведён в опасный режим.",
   "text.echoprotocol.command.mimic_harmless": "Активный Мимик %s принудительно исчезнет без вреда.",
   "text.echoprotocol.command.no_active_mimic": "У %s нет активного Эха-Мимика.",
+  "text.echoprotocol.command.skin_status": "Статус скина для %s: подписанные данные текстуры=%s, real_player_skins=%s, skin_cache_enabled=%s.",
+  "text.echoprotocol.command.skin_clear_cache": "Запрошено обновление кеша скина для %s. Клиентский кеш Minecraft безопасно обновится при следующем рендере Эха.",
+  "text.echoprotocol.command.position_test": "Безопасная позиция Эха для %s найдена: %s.",
+  "text.echoprotocol.command.sound_test": "Проигран звуковой профиль Эха %2$s для %1$s.",
   "text.echoprotocol.chat_echo": "<%s?> %s",
+  "subtitles.echoprotocol.memory_ambient": "Память тихо гудит",
+  "subtitles.echoprotocol.corrupted_static": "Память трещит",
+  "subtitles.echoprotocol.mimic_breath": "Что-то дышит рядом",
+  "subtitles.echoprotocol.mimic_threat": "Копия пульсирует",
   "advancements.echoprotocol.root.title": "Echo Protocol",
   "advancements.echoprotocol.root.description": "Мир начал запоминать вас.",
   "advancements.echoprotocol.deja_vu.title": "Дежавю",
@@ -37,5 +45,9 @@
   "advancements.echoprotocol.do_not_look_away.title": "Не отворачивайся",
   "advancements.echoprotocol.do_not_look_away.description": "Позвольте Эху-Мимику приблизиться, пока вы не смотрите.",
   "advancements.echoprotocol.copy_is_wrong.title": "Копия неправильная",
-  "advancements.echoprotocol.copy_is_wrong.description": "Переживите опасное событие Эха-Мимика."
+  "advancements.echoprotocol.copy_is_wrong.description": "Переживите опасное событие Эха-Мимика.",
+  "advancements.echoprotocol.familiar_face.title": "Знакомое лицо",
+  "advancements.echoprotocol.familiar_face.description": "Увидьте Эхо в скине, который оно помнит.",
+  "advancements.echoprotocol.behind_you.title": "За спиной",
+  "advancements.echoprotocol.behind_you.description": "Позвольте Эху приблизиться вне вашего взгляда."
 }

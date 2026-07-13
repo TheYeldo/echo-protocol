@@ -1,0 +1,20 @@
+{
+  "parent": "echoprotocol:that_was_me",
+  "display": {
+    "icon": {
+      "id": "minecraft:player_head"
+    },
+    "title": {
+      "translate": "advancements.echoprotocol.familiar_face.title"
+    },
+    "description": {
+      "translate": "advancements.echoprotocol.familiar_face.description"
+    },
+    "hidden": true
+  },
+  "criteria": {
+    "trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

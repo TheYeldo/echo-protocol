@@ -1,0 +1,18 @@
+{
+  "memory_ambient": {
+    "subtitle": "subtitles.echoprotocol.memory_ambient",
+    "sounds": []
+  },
+  "corrupted_static": {
+    "subtitle": "subtitles.echoprotocol.corrupted_static",
+    "sounds": []
+  },
+  "mimic_breath": {
+    "subtitle": "subtitles.echoprotocol.mimic_breath",
+    "sounds": []
+  },
+  "mimic_threat": {
+    "subtitle": "subtitles.echoprotocol.mimic_threat",
+    "sounds": []
+  }
+}

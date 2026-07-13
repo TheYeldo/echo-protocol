@@ -8,6 +8,7 @@ import dev.yeldos.echoprotocol.echo.EchoType;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.stage.EchoStage;
 import dev.yeldos.echoprotocol.stage.StageManager;
+import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
@@ -71,6 +72,58 @@ public final class EchoCommands {
                                 .then(CommandManager.literal("harmless")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
                                                 .executes(context -> setMimicMode(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, false)))))
+                        .then(CommandManager.literal("skin")
+                                .then(CommandManager.literal("status")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    boolean hasTextures = player.getGameProfile().getProperties().containsKey("textures");
+                                                    context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.skin_status",
+                                                            player.getName().getString(), hasTextures, EchoProtocol.config().realPlayerSkins(), EchoProtocol.config().skinCacheEnabled()), false);
+                                                    return 1;
+                                                })))
+                                .then(CommandManager.literal("clear-cache")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.skin_clear_cache",
+                                                            player.getName().getString()), true);
+                                                    return 1;
+                                                }))))
+                        .then(CommandManager.literal("visual")
+                                .then(CommandManager.literal("memory")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> forceTypedReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.MEMORY, false))))
+                                .then(CommandManager.literal("corrupted")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> forceTypedReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.CORRUPTED, false))))
+                                .then(CommandManager.literal("mimic")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> forceTypedReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.MIMIC, false)))))
+                        .then(CommandManager.literal("position")
+                                .then(CommandManager.literal("test")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    boolean found = SafeEchoPositionFinder.findSpawn(player.getServerWorld(), player,
+                                                            player.getPos().subtract(player.getRotationVec(1.0F).multiply(EchoProtocol.config().minimumEchoSpawnDistance())),
+                                                            EchoProtocol.config()).isPresent();
+                                                    context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.position_test",
+                                                            player.getName().getString(), found), false);
+                                                    return found ? 1 : 0;
+                                                }))))
+                        .then(CommandManager.literal("sound")
+                                .then(CommandManager.literal("test")
+                                        .then(CommandManager.literal("memory")
+                                                .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                        .executes(context -> testSound(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.MEMORY))))
+                                        .then(CommandManager.literal("corrupted")
+                                                .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                        .executes(context -> testSound(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.CORRUPTED))))
+                                        .then(CommandManager.literal("mimic")
+                                                .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                        .executes(context -> testSound(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director, EchoType.MIMIC)))))
+                        )
                         .then(CommandManager.literal("replay")
                                 .then(CommandManager.argument("player", EntityArgumentType.player())
                                         .executes(context -> forceReplay(context.getSource(), EntityArgumentType.getPlayer(context, "player"), director))))
@@ -136,6 +189,14 @@ public final class EchoCommands {
         }
         source.sendError(Text.translatable("text.echoprotocol.command.no_active_mimic", player.getName().getString()));
         return 0;
+    }
+
+    private static int testSound(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                 EchoEventDirector director, EchoType type) {
+        director.playDebugSound(player, type);
+        source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.sound_test",
+                player.getName().getString(), type.name().toLowerCase(java.util.Locale.ROOT)), false);
+        return 1;
     }
 
     private static void setDebug(boolean enabled) {

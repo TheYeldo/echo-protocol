@@ -8,15 +8,16 @@ import dev.yeldos.echoprotocol.recording.PlayerRecording;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.recording.SoundMarker;
+import dev.yeldos.echoprotocol.sound.EchoSoundPlayer;
 import dev.yeldos.echoprotocol.stage.EchoStage;
 import dev.yeldos.echoprotocol.stage.PlayerEchoState;
 import dev.yeldos.echoprotocol.stage.StageManager;
+import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
 
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -89,12 +91,17 @@ public final class EchoEventDirector {
         }
         RecordedFrame start = segment.get(0);
         ServerWorld world = target.getServerWorld();
+        Optional<Vec3d> spawnPos = SafeEchoPositionFinder.findSpawn(world, target, start.pos(), config);
+        if (spawnPos.isEmpty()) {
+            return false;
+        }
         EchoEntity echo = new EchoEntity(EchoEntities.ECHO, world);
         EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, forcedHostile);
         EchoBehaviorController behavior = behaviorFor(type, context);
         List<RecordedFrame> frames = type == EchoType.CORRUPTED ? corruptSegment(segment, target) : segment;
         echo.configure(target.getUuid(), config.sharedEchoes(), frames, config.recordingSampleIntervalTicks(), config, context, behavior);
-        echo.refreshPositionAndAngles(start.x(), start.y(), start.z(), start.bodyYaw(), start.pitch());
+        Vec3d pos = spawnPos.get();
+        echo.refreshPositionAndAngles(pos.x, pos.y, pos.z, start.bodyYaw(), start.pitch());
         world.spawnEntity(echo);
         activeEchoes.computeIfAbsent(target.getUuid(), ignored -> new ArrayList<>()).add(echo);
         state.setActiveEvent(true);
@@ -105,12 +112,15 @@ public final class EchoEventDirector {
                 mimicSpawnedThisSession.add(target.getUuid());
             }
         }
-        playEchoAmbient(target, config, new Vec3d(start.x(), start.y(), start.z()));
+        EchoSoundPlayer.playSpawnProfile(target, type, config, pos);
 
         state.incrementTotalEvents();
         stageManager.grant(target, "deja_vu");
         if (type == EchoType.MEMORY) {
             stageManager.grant(target, "that_was_me");
+        }
+        if (config.realPlayerSkins() && target.getGameProfile().getProperties().containsKey("textures")) {
+            stageManager.grant(target, "familiar_face");
         }
         if (forced || ThreadLocalRandom.current().nextInt(6) == 0) {
             playMemorySound(target, recording, config);
@@ -236,6 +246,10 @@ public final class EchoEventDirector {
         return false;
     }
 
+    public void playDebugSound(ServerPlayerEntity target, EchoType type) {
+        EchoSoundPlayer.playSpawnProfile(target, type, EchoProtocol.config(), target.getPos());
+    }
+
     private void cleanupActiveEchoes() {
         activeEchoes.entrySet().removeIf(entry -> {
             entry.getValue().removeIf(EchoEntity::isRemoved);
@@ -264,14 +278,6 @@ public final class EchoEventDirector {
                     Math.min(marker.volume(), 0.6F), marker.pitch());
         } else {
             target.playSoundToPlayer(marker.sound(), SoundCategory.PLAYERS, Math.min(marker.volume(), 0.6F), marker.pitch());
-        }
-    }
-
-    private static void playEchoAmbient(ServerPlayerEntity target, EchoConfig config, Vec3d pos) {
-        if (config.sharedEchoes()) {
-            target.getServerWorld().playSound(null, pos.x, pos.y, pos.z, SoundEvents.AMBIENT_CAVE.value(), SoundCategory.PLAYERS, 0.08F, 0.65F);
-        } else {
-            target.playSoundToPlayer(SoundEvents.AMBIENT_CAVE.value(), SoundCategory.PLAYERS, 0.08F, 0.65F);
         }
     }
 

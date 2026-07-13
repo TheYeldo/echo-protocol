@@ -47,14 +47,36 @@ public record EchoConfig(
         boolean corruptedEchoCanApproach,
         boolean echoMovesWhenUnobserved,
         boolean echoLightEffects,
-        boolean echoSoundEffects
+        boolean echoSoundEffects,
+        boolean realPlayerSkins,
+        boolean skinCacheEnabled,
+        float memoryEchoOpacity,
+        float corruptedEchoOpacity,
+        float mimicEchoOpacity,
+        float mimicThreateningOpacity,
+        boolean corruptionFlickerEnabled,
+        boolean corruptionAfterimagesEnabled,
+        float corruptionVisualIntensity,
+        boolean reducedVisualEffects,
+        boolean reducedFlashing,
+        float echoMasterVolume,
+        float memoryEchoVolume,
+        float corruptedEchoVolume,
+        float mimicEchoVolume,
+        boolean breathingEnabled,
+        boolean staticEffectsEnabled,
+        int safeSpawnAttempts,
+        int minimumEchoSpawnDistance,
+        int maximumEchoSpawnDistance
 ) {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("echo_protocol.json");
 
     public static EchoConfig defaults() {
         return new EchoConfig(true, 2, 10, 5, 15, 10, 60, 480, 1080, false, false, true, true, 0.45F, false,
-                true, true, true, 70, 25, 5, 30, 60, 40, 80, true, 4.0F, 1, true, 5, 10, true, true, true, true);
+                true, true, true, 70, 25, 5, 30, 60, 40, 80, true, 4.0F, 1, true, 5, 10, true, true, true, true,
+                true, true, 0.42F, 0.48F, 0.58F, 0.90F, true, true, 0.65F, false, true,
+                0.75F, 0.55F, 0.70F, 0.80F, true, true, 16, 8, 32);
     }
 
     public static EchoConfig load() {
@@ -79,7 +101,12 @@ public record EchoConfig(
                 mimicEchoEnabled, memoryEchoWeight, corruptedEchoWeight, mimicEchoWeight, mimicMinimumStageTwoMinutes,
                 mimicSessionCooldownMinutes, mimicMovementDelayMinTicks, mimicMovementDelayMaxTicks, mimicDamageEnabled,
                 mimicDamage, mimicMaxHitsPerEvent, mimicChaseEnabled, mimicChaseMinSeconds, mimicChaseMaxSeconds,
-                corruptedEchoCanApproach, echoMovesWhenUnobserved, echoLightEffects, echoSoundEffects).validate();
+                corruptedEchoCanApproach, echoMovesWhenUnobserved, echoLightEffects, echoSoundEffects,
+                realPlayerSkins, skinCacheEnabled, memoryEchoOpacity, corruptedEchoOpacity, mimicEchoOpacity,
+                mimicThreateningOpacity, corruptionFlickerEnabled, corruptionAfterimagesEnabled,
+                corruptionVisualIntensity, reducedVisualEffects, reducedFlashing, echoMasterVolume,
+                memoryEchoVolume, corruptedEchoVolume, mimicEchoVolume, breathingEnabled, staticEffectsEnabled,
+                safeSpawnAttempts, minimumEchoSpawnDistance, maximumEchoSpawnDistance).validate();
         updated.save();
         return updated;
     }
@@ -121,12 +148,27 @@ public record EchoConfig(
         int maxHits = clamp(mimicMaxHitsPerEvent, 0, 5);
         int chaseMin = clamp(mimicChaseMinSeconds, 1, 30);
         int chaseMax = clamp(Math.max(mimicChaseMaxSeconds, chaseMin), chaseMin, 60);
+        float memoryOpacity = clampFloat(memoryEchoOpacity, 0.05F, 1.0F);
+        float corruptedOpacity = clampFloat(corruptedEchoOpacity, 0.05F, 1.0F);
+        float mimicOpacity = clampFloat(mimicEchoOpacity, 0.05F, 1.0F);
+        float threatOpacity = clampFloat(mimicThreateningOpacity, mimicOpacity, 1.0F);
+        float visualIntensity = clampFloat(corruptionVisualIntensity, 0.0F, 1.0F);
+        float masterVolume = clampFloat(echoMasterVolume, 0.0F, 1.0F);
+        float memoryVolume = clampFloat(memoryEchoVolume, 0.0F, 1.0F);
+        float corruptedVolume = clampFloat(corruptedEchoVolume, 0.0F, 1.0F);
+        float mimicVolume = clampFloat(mimicEchoVolume, 0.0F, 1.0F);
+        int attempts = clamp(safeSpawnAttempts, 1, 64);
+        int minDistance = clamp(minimumEchoSpawnDistance, 2, 64);
+        int maxDistance = clamp(Math.max(maximumEchoSpawnDistance, minDistance), minDistance, 128);
         return new EchoConfig(enabled, sample, history, minReplay, maxReplay, stageZero, stageTwo, minInterval,
                 maxInterval, sharedEchoes, chatEchoes, torchFlicker, soundEchoes, opacity, debugLogging,
                 memoryEchoEnabled, corruptedEchoEnabled, mimicEchoEnabled, memoryWeight, corruptedWeight, mimicWeight,
                 mimicStageMinutes, mimicCooldown, delayMin, delayMax, mimicDamageEnabled, damage, maxHits,
                 mimicChaseEnabled, chaseMin, chaseMax, corruptedEchoCanApproach, echoMovesWhenUnobserved,
-                echoLightEffects, echoSoundEffects);
+                echoLightEffects, echoSoundEffects, realPlayerSkins, skinCacheEnabled, memoryOpacity,
+                corruptedOpacity, mimicOpacity, threatOpacity, corruptionFlickerEnabled, corruptionAfterimagesEnabled,
+                visualIntensity, reducedVisualEffects, reducedFlashing, masterVolume, memoryVolume, corruptedVolume,
+                mimicVolume, breathingEnabled, staticEffectsEnabled, attempts, minDistance, maxDistance);
     }
 
     private Raw toRaw() {
@@ -166,6 +208,26 @@ public record EchoConfig(
         raw.echo_moves_when_unobserved = echoMovesWhenUnobserved;
         raw.echo_light_effects = echoLightEffects;
         raw.echo_sound_effects = echoSoundEffects;
+        raw.real_player_skins = realPlayerSkins;
+        raw.skin_cache_enabled = skinCacheEnabled;
+        raw.memory_echo_opacity = memoryEchoOpacity;
+        raw.corrupted_echo_opacity = corruptedEchoOpacity;
+        raw.mimic_echo_opacity = mimicEchoOpacity;
+        raw.mimic_threatening_opacity = mimicThreateningOpacity;
+        raw.corruption_flicker_enabled = corruptionFlickerEnabled;
+        raw.corruption_afterimages_enabled = corruptionAfterimagesEnabled;
+        raw.corruption_visual_intensity = corruptionVisualIntensity;
+        raw.reduced_visual_effects = reducedVisualEffects;
+        raw.reduced_flashing = reducedFlashing;
+        raw.echo_master_volume = echoMasterVolume;
+        raw.memory_echo_volume = memoryEchoVolume;
+        raw.corrupted_echo_volume = corruptedEchoVolume;
+        raw.mimic_echo_volume = mimicEchoVolume;
+        raw.breathing_enabled = breathingEnabled;
+        raw.static_effects_enabled = staticEffectsEnabled;
+        raw.safe_spawn_attempts = safeSpawnAttempts;
+        raw.minimum_echo_spawn_distance = minimumEchoSpawnDistance;
+        raw.maximum_echo_spawn_distance = maximumEchoSpawnDistance;
         return raw;
     }
 
@@ -209,11 +271,35 @@ public record EchoConfig(
                 raw.corrupted_echo_can_approach == null ? defaults.corruptedEchoCanApproach : raw.corrupted_echo_can_approach,
                 raw.echo_moves_when_unobserved == null ? defaults.echoMovesWhenUnobserved : raw.echo_moves_when_unobserved,
                 raw.echo_light_effects == null ? defaults.echoLightEffects : raw.echo_light_effects,
-                raw.echo_sound_effects == null ? defaults.echoSoundEffects : raw.echo_sound_effects
+                raw.echo_sound_effects == null ? defaults.echoSoundEffects : raw.echo_sound_effects,
+                raw.real_player_skins == null ? defaults.realPlayerSkins : raw.real_player_skins,
+                raw.skin_cache_enabled == null ? defaults.skinCacheEnabled : raw.skin_cache_enabled,
+                raw.memory_echo_opacity == null ? defaults.memoryEchoOpacity : raw.memory_echo_opacity,
+                raw.corrupted_echo_opacity == null ? defaults.corruptedEchoOpacity : raw.corrupted_echo_opacity,
+                raw.mimic_echo_opacity == null ? defaults.mimicEchoOpacity : raw.mimic_echo_opacity,
+                raw.mimic_threatening_opacity == null ? defaults.mimicThreateningOpacity : raw.mimic_threatening_opacity,
+                raw.corruption_flicker_enabled == null ? defaults.corruptionFlickerEnabled : raw.corruption_flicker_enabled,
+                raw.corruption_afterimages_enabled == null ? defaults.corruptionAfterimagesEnabled : raw.corruption_afterimages_enabled,
+                raw.corruption_visual_intensity == null ? defaults.corruptionVisualIntensity : raw.corruption_visual_intensity,
+                raw.reduced_visual_effects == null ? defaults.reducedVisualEffects : raw.reduced_visual_effects,
+                raw.reduced_flashing == null ? defaults.reducedFlashing : raw.reduced_flashing,
+                raw.echo_master_volume == null ? defaults.echoMasterVolume : raw.echo_master_volume,
+                raw.memory_echo_volume == null ? defaults.memoryEchoVolume : raw.memory_echo_volume,
+                raw.corrupted_echo_volume == null ? defaults.corruptedEchoVolume : raw.corrupted_echo_volume,
+                raw.mimic_echo_volume == null ? defaults.mimicEchoVolume : raw.mimic_echo_volume,
+                raw.breathing_enabled == null ? defaults.breathingEnabled : raw.breathing_enabled,
+                raw.static_effects_enabled == null ? defaults.staticEffectsEnabled : raw.static_effects_enabled,
+                raw.safe_spawn_attempts == null ? defaults.safeSpawnAttempts : raw.safe_spawn_attempts,
+                raw.minimum_echo_spawn_distance == null ? defaults.minimumEchoSpawnDistance : raw.minimum_echo_spawn_distance,
+                raw.maximum_echo_spawn_distance == null ? defaults.maximumEchoSpawnDistance : raw.maximum_echo_spawn_distance
         );
     }
 
     private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static float clampFloat(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
     }
 
@@ -253,5 +339,25 @@ public record EchoConfig(
         Boolean echo_moves_when_unobserved;
         Boolean echo_light_effects;
         Boolean echo_sound_effects;
+        Boolean real_player_skins;
+        Boolean skin_cache_enabled;
+        Float memory_echo_opacity;
+        Float corrupted_echo_opacity;
+        Float mimic_echo_opacity;
+        Float mimic_threatening_opacity;
+        Boolean corruption_flicker_enabled;
+        Boolean corruption_afterimages_enabled;
+        Float corruption_visual_intensity;
+        Boolean reduced_visual_effects;
+        Boolean reduced_flashing;
+        Float echo_master_volume;
+        Float memory_echo_volume;
+        Float corrupted_echo_volume;
+        Float mimic_echo_volume;
+        Boolean breathing_enabled;
+        Boolean static_effects_enabled;
+        Integer safe_spawn_attempts;
+        Integer minimum_echo_spawn_distance;
+        Integer maximum_echo_spawn_distance;
     }
 }

@@ -40,6 +40,8 @@ public final class EchoEntity extends MobEntity {
     private static final TrackedData<Boolean> REPLAY_SPRINTING = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> REPLAY_SWIMMING = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<ItemStack> HELD_ITEM = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.ITEM_STACK);
+    private static final TrackedData<Integer> ECHO_TYPE = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.INTEGER);
+    private static final TrackedData<Integer> ECHO_STATE = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.INTEGER);
 
     private final List<RecordedFrame> replay = new ArrayList<>();
     private int sampleIntervalTicks = 2;
@@ -80,6 +82,8 @@ public final class EchoEntity extends MobEntity {
         builder.add(REPLAY_SPRINTING, false);
         builder.add(REPLAY_SWIMMING, false);
         builder.add(HELD_ITEM, ItemStack.EMPTY);
+        builder.add(ECHO_TYPE, EchoType.MEMORY.ordinal());
+        builder.add(ECHO_STATE, EchoState.REPLAYING.ordinal());
     }
 
     public void configure(UUID targetUuid, boolean shared, List<RecordedFrame> frames, int sampleIntervalTicks,
@@ -90,10 +94,16 @@ public final class EchoEntity extends MobEntity {
         this.behavior = behavior;
         this.echoType = behavior.type();
         this.echoState = behavior.state();
+        this.dataTracker.set(ECHO_TYPE, this.echoType.ordinal());
+        this.dataTracker.set(ECHO_STATE, this.echoState.ordinal());
         this.replay.clear();
         this.replay.addAll(frames);
         this.sampleIntervalTicks = Math.max(1, sampleIntervalTicks);
-        this.baseOpacity = Math.max(0.05F, config.echoOpacity());
+        this.baseOpacity = switch (behavior.type()) {
+            case MEMORY -> config.memoryEchoOpacity();
+            case CORRUPTED -> config.corruptedEchoOpacity();
+            case MIMIC -> config.mimicEchoOpacity();
+        };
         this.dataTracker.set(OPACITY, 0.0F);
         if (!frames.isEmpty()) {
             RecordedFrame first = frames.get(0);
@@ -276,11 +286,13 @@ public final class EchoEntity extends MobEntity {
     }
 
     public EchoType echoType() {
-        return echoType;
+        int index = MathHelper.clamp(dataTracker.get(ECHO_TYPE), 0, EchoType.values().length - 1);
+        return EchoType.values()[index];
     }
 
     public EchoState echoState() {
-        return echoState;
+        int index = MathHelper.clamp(dataTracker.get(ECHO_STATE), 0, EchoState.values().length - 1);
+        return EchoState.values()[index];
     }
 
     public EchoBehaviorController behavior() {
@@ -289,6 +301,7 @@ public final class EchoEntity extends MobEntity {
 
     public void setEchoState(EchoState echoState) {
         this.echoState = echoState;
+        this.dataTracker.set(ECHO_STATE, echoState.ordinal());
     }
 
     public boolean visibleTo(UUID viewerUuid) {

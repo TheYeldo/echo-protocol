@@ -2,6 +2,8 @@ package dev.yeldos.echoprotocol.echo;
 
 import dev.yeldos.echoprotocol.entity.EchoEntity;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
+import dev.yeldos.echoprotocol.rendering.EchoVisualEffects;
+import dev.yeldos.echoprotocol.sound.EchoSoundPlayer;
 import dev.yeldos.echoprotocol.util.EchoVisibility;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
@@ -140,6 +142,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
             Vec3d closer = target.getPos().subtract(target.getRotationVec(1.0F).multiply(3.2D));
             if (echo.moveToward(closer, 0.75D)) {
                 context.stageManager().grant(target, "do_not_look_away");
+                context.stageManager().grant(target, "behind_you");
+                EchoSoundPlayer.playUnseenMove(target, context.config(), echo.getPos());
             }
         }
         if (stateAge > 140) {
@@ -162,8 +166,10 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
 
     private void tickThreatening(EchoEntity echo, ServerPlayerEntity target) {
         echo.lookAtTarget(0.25F);
+        echo.setReplayOpacity(context.config().mimicThreateningOpacity());
         if (stateAge == 1) {
             target.addStatusEffect(new StatusEffectInstance(StatusEffects.DARKNESS, 45, 0, false, false, true));
+            EchoSoundPlayer.playThreat(target, context.config(), echo.getPos());
         }
         if (context.config().mimicChaseEnabled()) {
             chaseTicks++;
@@ -182,6 +188,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     private void tickDisappearing(EchoEntity echo) {
         echo.setReplayOpacity(Math.max(0.0F, 0.4F - stateAge / 45.0F));
         if (stateAge > 45) {
+            EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.MIMIC, context.config(), echo.getPos());
+            EchoVisualEffects.disappear(echo.getTargetPlayer(), context.config(), echo.getPos());
             echo.finishAndDiscard();
         }
     }
