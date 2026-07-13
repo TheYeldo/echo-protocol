@@ -2,6 +2,8 @@
 
 Echo Protocol is a standalone Fabric mod for Minecraft Java Edition 1.21.1. The world records short, bounded slices of a player's recent movement and later replays distorted memories as translucent Echoes.
 
+This is an alpha release. Features are playable and manually tested, but behavior, configuration defaults, and save data may change before a stable release.
+
 ## Requirements
 
 - Minecraft Java Edition 1.21.1
@@ -22,6 +24,24 @@ On Unix-like systems:
 ```
 
 The generated mod JAR is written to `build/libs/echo-protocol-0.2.0-alpha.jar`.
+
+## Installation
+
+1. Install Minecraft Java Edition 1.21.1.
+2. Install Fabric Loader 0.16.14 or a compatible 1.21.1 loader.
+3. Install Fabric API 0.116.13+1.21.1 in the `mods` folder.
+4. Place `echo-protocol-0.2.0-alpha.jar` in the same `mods` folder.
+5. Launch the client or dedicated server with Java 21.
+
+## Echo Types
+
+- Memory Echoes replay a previous route from the target player's bounded movement history.
+- Corrupted Echoes begin as a replay, then may desynchronize, watch, approach, hide, and fade.
+- Mimic Echoes copy the target player's current movement with a delay and may rarely enter a scripted hostile encounter when enabled.
+
+## Multiplayer and Privacy
+
+Echo Protocol supports dedicated servers and multiplayer. By default, `shared_echoes` is `false`: private Echo entities are server-filtered so unrelated nearby players are not allowed to track the private Echo entity, and private Echo sounds, particles, replay state, and chat echoes are sent only to the target player's client. When `shared_echoes` is `true`, nearby players may see and hear Echo events normally.
 
 ## Configuration
 
@@ -122,6 +142,13 @@ All commands require permission level 2.
 Recording is bounded per online player. With the default interval of 2 ticks and 10 minutes of history, each player stores at most 6,000 movement frames plus a small bounded set of sound/chat markers. Mimic Echoes use a separate bounded delayed movement queue of about 220 frames while active. Skin rendering uses Minecraft's client skin provider and a bounded 64-entry client-side resolver cache; the server stores only the target UUID needed for allowed viewers. Safe spawn checks use at most `safe_spawn_attempts` local attempts and never force-load chunks. The implementation avoids pathfinding, chunk force-loading, block entity ticking, and global entity scans. Echo entities are short-lived, non-colliding, server-directed events.
 
 Estimated memory use is roughly 1 to 2 MB per active player depending on JVM object layout and held item NBT size. The held item visual is copied in a single-item stack form and old data is discarded automatically.
+
+## Known Limitations
+
+- Some Echo behavior is scripted rather than using advanced navigation.
+- Recordings are kept in memory and are not preserved across server restarts.
+- Sound design currently relies mostly on compatible vanilla sound events.
+- Some menu and portal-state detection is limited by server-side information.
 
 ## Test Checklist
 

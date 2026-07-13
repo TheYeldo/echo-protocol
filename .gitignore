@@ -2,6 +2,13 @@
 build/
 run/
 .idea/
-*.iml
 out/
+*.iml
+logs/
+crash-reports/
+saves/
+eula.txt
+server.properties
+usercache.json
+usernamecache.json
 *.log
