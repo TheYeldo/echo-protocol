@@ -5,6 +5,8 @@ import dev.yeldos.echoprotocol.echo.EchoState;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.BipedEntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.feature.HeldItemFeatureRenderer;
@@ -68,7 +70,7 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
 
     private net.minecraft.client.render.VertexConsumerProvider lightAware(
             net.minecraft.client.render.VertexConsumerProvider vertexConsumers, EchoEntity entity) {
-        return vertexConsumers;
+        return new GhostAlphaVertexConsumerProvider(vertexConsumers, entity.getReplayOpacity());
     }
 
     @Override
@@ -84,5 +86,58 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
     @Override
     protected RenderLayer getRenderLayer(EchoEntity entity, boolean showBody, boolean translucent, boolean showOutline) {
         return RenderLayer.getEntityTranslucent(getTexture(entity));
+    }
+
+    private record GhostAlphaVertexConsumerProvider(VertexConsumerProvider delegate, float alpha) implements VertexConsumerProvider {
+        @Override
+        public VertexConsumer getBuffer(RenderLayer layer) {
+            return new GhostAlphaVertexConsumer(delegate.getBuffer(layer), alpha);
+        }
+    }
+
+    private static final class GhostAlphaVertexConsumer implements VertexConsumer {
+        private final VertexConsumer delegate;
+        private final float alpha;
+
+        private GhostAlphaVertexConsumer(VertexConsumer delegate, float alpha) {
+            this.delegate = delegate;
+            this.alpha = Math.max(0.0F, Math.min(1.0F, alpha));
+        }
+
+        @Override
+        public VertexConsumer vertex(float x, float y, float z) {
+            delegate.vertex(x, y, z);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int red, int green, int blue, int alpha) {
+            delegate.color(red, green, blue, Math.round(alpha * this.alpha));
+            return this;
+        }
+
+        @Override
+        public VertexConsumer texture(float u, float v) {
+            delegate.texture(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer overlay(int u, int v) {
+            delegate.overlay(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer light(int u, int v) {
+            delegate.light(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer normal(float x, float y, float z) {
+            delegate.normal(x, y, z);
+            return this;
+        }
     }
 }
