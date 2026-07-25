@@ -8,6 +8,7 @@ import dev.yeldos.echoprotocol.echo.EchoType;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity.RemovalReason;
+import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.MovementType;
 import net.minecraft.entity.ai.goal.Goal;
@@ -100,7 +101,7 @@ public final class EchoEntity extends MobEntity {
         this.replay.addAll(frames);
         this.sampleIntervalTicks = Math.max(1, sampleIntervalTicks);
         this.baseOpacity = switch (behavior.type()) {
-            case MEMORY -> config.memoryEchoOpacity();
+            case MEMORY, FALSE_MEMORY -> config.memoryEchoOpacity();
             case CORRUPTED -> config.corruptedEchoOpacity();
             case MIMIC -> config.mimicEchoOpacity();
             case ORIGINAL -> config.originalNearFullOpacity();
@@ -115,6 +116,9 @@ public final class EchoEntity extends MobEntity {
 
     @Override
     public void tick() {
+        if (!getWorld().isClient() && echoType == EchoType.ORIGINAL) {
+            setVelocity(Vec3d.ZERO);
+        }
         super.tick();
         this.noClip = true;
         this.setNoGravity(true);
@@ -162,9 +166,7 @@ public final class EchoEntity extends MobEntity {
 
         refreshPositionAndAngles(x, y, z, yaw, pitch);
         bodyYaw = yaw;
-        dataTracker.set(REPLAY_SNEAKING, frame.sneaking());
-        dataTracker.set(REPLAY_SPRINTING, frame.sprinting());
-        dataTracker.set(REPLAY_SWIMMING, frame.swimming());
+        applyRecordedPose(frame);
         dataTracker.set(HELD_ITEM, frame.heldItemVisual());
         setStackInHand(Hand.MAIN_HAND, frame.heldItemVisual());
 
@@ -176,14 +178,55 @@ public final class EchoEntity extends MobEntity {
         return true;
     }
 
+    public boolean applyFrameSequence(List<RecordedFrame> frames, int sequenceAge, boolean fadeIn) {
+        if (frames.isEmpty()) {
+            return false;
+        }
+        int duration = Math.max(1, (frames.size() - 1) * sampleIntervalTicks);
+        if (sequenceAge > duration + sampleIntervalTicks) {
+            return false;
+        }
+        float progress = Math.max(0, sequenceAge) / (float) sampleIntervalTicks;
+        int index = MathHelper.clamp((int) progress, 0, frames.size() - 1);
+        int nextIndex = MathHelper.clamp(index + 1, 0, frames.size() - 1);
+        float delta = MathHelper.clamp(progress - index, 0.0F, 1.0F);
+        RecordedFrame frame = frames.get(index);
+        RecordedFrame next = frames.get(nextIndex);
+        Vec3d pos = new Vec3d(
+                MathHelper.lerp(delta, frame.x(), next.x()),
+                MathHelper.lerp(delta, frame.y(), next.y()),
+                MathHelper.lerp(delta, frame.z(), next.z()));
+        float yaw = MathHelper.lerpAngleDegrees(delta, frame.bodyYaw(), next.bodyYaw());
+        float headYaw = MathHelper.lerpAngleDegrees(delta, frame.headYaw(), next.headYaw());
+        float pitch = MathHelper.lerp(delta, frame.pitch(), next.pitch());
+        refreshPositionAndAngles(pos.x, pos.y, pos.z, yaw, pitch);
+        bodyYaw = yaw;
+        setHeadYaw(headYaw);
+        applyRecordedPose(frame);
+        setHeldItemVisual(frame.heldItemVisual());
+        float opacity = baseOpacity;
+        if (fadeIn) {
+            opacity *= MathHelper.clamp(sequenceAge / 20.0F, 0.0F, 1.0F);
+        }
+        setReplayOpacity(opacity);
+        return true;
+    }
+
     public void applyFrame(RecordedFrame frame) {
         refreshPositionAndAngles(frame.x(), frame.y(), frame.z(), frame.bodyYaw(), frame.pitch());
         bodyYaw = frame.bodyYaw();
         setHeadYaw(frame.headYaw());
+        applyRecordedPose(frame);
+        setHeldItemVisual(frame.heldItemVisual());
+    }
+
+    private void applyRecordedPose(RecordedFrame frame) {
         dataTracker.set(REPLAY_SNEAKING, frame.sneaking());
         dataTracker.set(REPLAY_SPRINTING, frame.sprinting());
-        dataTracker.set(REPLAY_SWIMMING, frame.swimming());
-        setHeldItemVisual(frame.heldItemVisual());
+        dataTracker.set(REPLAY_SWIMMING, frame.swimming() || frame.crawling());
+        setSprinting(frame.sprinting());
+        setPose(frame.swimming() || frame.crawling() ? EntityPose.SWIMMING
+                : frame.sneaking() ? EntityPose.CROUCHING : EntityPose.STANDING);
     }
 
     public void setHeldItemVisual(ItemStack stack) {
@@ -232,6 +275,73 @@ public final class EchoEntity extends MobEntity {
         bodyYaw = yaw;
         setHeadYaw(yaw);
         return true;
+    }
+
+    public void moveOriginalStep(Vec3d step, boolean fast) {
+        if (step.lengthSquared() <= 0.0000001D) {
+            stopOriginalMotion();
+            return;
+        }
+        setVelocity(step);
+        move(MovementType.SELF, step);
+        dataTracker.set(REPLAY_SPRINTING, fast);
+        dataTracker.set(REPLAY_SNEAKING, false);
+        setSprinting(fast);
+        setPose(EntityPose.STANDING);
+    }
+
+    public void stopOriginalMotion() {
+        setVelocity(Vec3d.ZERO);
+        dataTracker.set(REPLAY_SPRINTING, false);
+        setSprinting(false);
+    }
+
+    public void setOriginalCrouching(boolean crouching) {
+        stopOriginalMotion();
+        dataTracker.set(REPLAY_SNEAKING, crouching);
+        setPose(crouching ? EntityPose.CROUCHING : EntityPose.STANDING);
+    }
+
+    public float turnBodyToward(Vec3d direction, float maximumDegrees) {
+        if (direction.x * direction.x + direction.z * direction.z < 0.000001D) {
+            return 0.0F;
+        }
+        float desired = (float) (MathHelper.atan2(direction.z, direction.x) * 57.2957763671875D) - 90.0F;
+        float difference = MathHelper.wrapDegrees(desired - bodyYaw);
+        float change = MathHelper.clamp(difference, -maximumDegrees, maximumDegrees);
+        float updated = bodyYaw + change;
+        bodyYaw = updated;
+        setYaw(updated);
+        return Math.abs(difference);
+    }
+
+    public void turnHeadToward(Vec3d position, float maximumYawDegrees, float maximumPitchDegrees,
+                               float maximumHeadBodyDifference) {
+        Vec3d delta = position.subtract(getEyePos());
+        if (delta.lengthSquared() < 0.000001D) {
+            return;
+        }
+        float desiredYaw = (float) (MathHelper.atan2(delta.z, delta.x) * 57.2957763671875D) - 90.0F;
+        float desiredPitch = (float) (-(MathHelper.atan2(delta.y,
+                Math.sqrt(delta.x * delta.x + delta.z * delta.z)) * 57.2957763671875D));
+        float boundedYaw = bodyYaw + MathHelper.clamp(MathHelper.wrapDegrees(desiredYaw - bodyYaw),
+                -maximumHeadBodyDifference, maximumHeadBodyDifference);
+        setHeadYaw(stepAngle(getHeadYaw(), boundedYaw, maximumYawDegrees));
+        setPitch(stepLinear(getPitch(), desiredPitch, maximumPitchDegrees));
+        grantLookAdvancement = true;
+    }
+
+    public void resetOriginalHead(float maximumYawDegrees, float maximumPitchDegrees) {
+        setHeadYaw(stepAngle(getHeadYaw(), bodyYaw, maximumYawDegrees));
+        setPitch(stepLinear(getPitch(), 0.0F, maximumPitchDegrees));
+    }
+
+    private static float stepAngle(float current, float target, float maximumDegrees) {
+        return current + MathHelper.clamp(MathHelper.wrapDegrees(target - current), -maximumDegrees, maximumDegrees);
+    }
+
+    private static float stepLinear(float current, float target, float maximumChange) {
+        return current + MathHelper.clamp(target - current, -maximumChange, maximumChange);
     }
 
     public boolean isSafeEchoPosition(Vec3d pos) {
@@ -385,6 +495,11 @@ public final class EchoEntity extends MobEntity {
 
     @Override
     public void writeCustomDataToNbt(NbtCompound nbt) {
+    }
+
+    @Override
+    public boolean shouldSave() {
+        return false;
     }
 
     @Override

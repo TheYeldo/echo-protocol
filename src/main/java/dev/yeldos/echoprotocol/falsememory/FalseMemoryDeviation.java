@@ -1,0 +1,14 @@
+package dev.yeldos.echoprotocol.falsememory;
+
+public enum FalseMemoryDeviation {
+    CONTINUE_BEYOND_RECORDING,
+    REPEAT_MOVEMENT,
+    REVERSE_ROUTE,
+    CROUCH_AT_WRONG_PLACE,
+    LOOK_AT_PLAYER,
+    HOLD_DIFFERENT_ITEM,
+    HEAD_SHAKE,
+    SWING_AT_EMPTY_SPACE,
+    APPROACH_FAMILIAR_PLACE,
+    VANISH_WHEN_OBSERVED
+}

@@ -1,0 +1,10 @@
+{
+  "parent": "echoprotocol:that_was_me",
+  "display": {
+    "icon": { "id": "minecraft:clock" },
+    "title": { "translate": "advancements.echoprotocol.that_never_happened.title" },
+    "description": { "translate": "advancements.echoprotocol.that_never_happened.description" },
+    "hidden": true
+  },
+  "criteria": { "trigger": { "trigger": "minecraft:impossible" } }
+}

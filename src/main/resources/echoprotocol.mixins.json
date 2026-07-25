@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "dev.yeldos.echoprotocol.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ServerEntityTrackingMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

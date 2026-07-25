@@ -1,0 +1,10 @@
+{
+  "parent": "echoprotocol:deja_vu",
+  "display": {
+    "icon": { "id": "minecraft:leather_boots" },
+    "title": { "translate": "advancements.echoprotocol.not_my_footsteps.title" },
+    "description": { "translate": "advancements.echoprotocol.not_my_footsteps.description" },
+    "hidden": true
+  },
+  "criteria": { "trigger": { "trigger": "minecraft:impossible" } }
+}

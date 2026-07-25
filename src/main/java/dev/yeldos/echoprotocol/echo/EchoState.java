@@ -2,6 +2,7 @@ package dev.yeldos.echoprotocol.echo;
 
 public enum EchoState {
     REPLAYING,
+    DEVIATING,
     OBSERVING,
     COPYING,
     DESYNCHRONIZING,
