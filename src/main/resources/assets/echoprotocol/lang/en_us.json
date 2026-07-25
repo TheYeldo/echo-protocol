@@ -97,5 +97,8 @@
   "text.echoprotocol.command.habits_list": "%1$s has %2$s bounded habit(s): %3$s",
   "text.echoprotocol.command.habits_clear": "Cleared %2$s habit(s) for %1$s.",
   "text.echoprotocol.command.director_history": "%1$s has %2$s recent director event(s): %3$s",
-  "text.echoprotocol.command.director_clear": "Cleared %2$s director event(s) for %1$s."
+  "text.echoprotocol.command.director_clear": "Cleared %2$s director event(s) for %1$s.",
+  "text.echoprotocol.command.original_movement_test": "Started Original movement test '%2$s' for %1$s.",
+  "text.echoprotocol.command.original_unknown_movement": "Unknown Original movement test '%1$s'. Allowed: %2$s.",
+  "text.echoprotocol.command.original_status": "Original status for %1$s: %2$s"
 }

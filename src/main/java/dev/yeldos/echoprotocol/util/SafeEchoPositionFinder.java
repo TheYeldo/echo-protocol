@@ -68,6 +68,24 @@ public final class SafeEchoPositionFinder {
         return Optional.empty();
     }
 
+    public static Optional<Vec3d> findOriginalStart(ServerWorld world, ServerPlayerEntity target, Vec3d anchor,
+                                                    EchoConfig config) {
+        int attempts = Math.max(12, Math.min(32, config.safeSpawnAttempts() * 2));
+        double minimum = Math.max(5.0D, config.originalMinimumMovementDistance());
+        double maximum = Math.min(12.0D, config.originalMaximumMovementDistance());
+        maximum = Math.max(minimum, maximum);
+        for (int i = 0; i < attempts; i++) {
+            double angle = i * Math.PI * 2.0D / attempts + (target.getUuid().hashCode() & 7) * 0.11D;
+            double distance = MathHelper.lerp((i % 5) / 4.0D, minimum, maximum);
+            Vec3d candidate = dropToGround(world, anchor.add(Math.cos(angle) * distance, 0.0D,
+                    Math.sin(angle) * distance));
+            if (isValid(world, target, candidate, config, true)) {
+                return Optional.of(candidate);
+            }
+        }
+        return Optional.empty();
+    }
+
     public static boolean isValid(ServerWorld world, ServerPlayerEntity target, Vec3d pos, EchoConfig config, boolean requireFloor) {
         BlockPos blockPos = BlockPos.ofFloored(pos);
         if (!world.isChunkLoaded(blockPos)) {
@@ -103,7 +121,12 @@ public final class SafeEchoPositionFinder {
         return state.isOf(Blocks.LAVA)
                 || state.isOf(Blocks.FIRE)
                 || state.isOf(Blocks.SOUL_FIRE)
+                || state.isOf(Blocks.CACTUS)
                 || state.isOf(Blocks.POWDER_SNOW)
+                || state.isOf(Blocks.MAGMA_BLOCK)
+                || state.isOf(Blocks.CAMPFIRE)
+                || state.isOf(Blocks.SOUL_CAMPFIRE)
+                || state.isOf(Blocks.SWEET_BERRY_BUSH)
                 || state.isOf(Blocks.NETHER_PORTAL)
                 || state.isOf(Blocks.END_PORTAL);
     }

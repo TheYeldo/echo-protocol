@@ -116,6 +116,9 @@ public final class EchoEntity extends MobEntity {
 
     @Override
     public void tick() {
+        if (!getWorld().isClient() && echoType == EchoType.ORIGINAL) {
+            setVelocity(Vec3d.ZERO);
+        }
         super.tick();
         this.noClip = true;
         this.setNoGravity(true);
@@ -272,6 +275,73 @@ public final class EchoEntity extends MobEntity {
         bodyYaw = yaw;
         setHeadYaw(yaw);
         return true;
+    }
+
+    public void moveOriginalStep(Vec3d step, boolean fast) {
+        if (step.lengthSquared() <= 0.0000001D) {
+            stopOriginalMotion();
+            return;
+        }
+        setVelocity(step);
+        move(MovementType.SELF, step);
+        dataTracker.set(REPLAY_SPRINTING, fast);
+        dataTracker.set(REPLAY_SNEAKING, false);
+        setSprinting(fast);
+        setPose(EntityPose.STANDING);
+    }
+
+    public void stopOriginalMotion() {
+        setVelocity(Vec3d.ZERO);
+        dataTracker.set(REPLAY_SPRINTING, false);
+        setSprinting(false);
+    }
+
+    public void setOriginalCrouching(boolean crouching) {
+        stopOriginalMotion();
+        dataTracker.set(REPLAY_SNEAKING, crouching);
+        setPose(crouching ? EntityPose.CROUCHING : EntityPose.STANDING);
+    }
+
+    public float turnBodyToward(Vec3d direction, float maximumDegrees) {
+        if (direction.x * direction.x + direction.z * direction.z < 0.000001D) {
+            return 0.0F;
+        }
+        float desired = (float) (MathHelper.atan2(direction.z, direction.x) * 57.2957763671875D) - 90.0F;
+        float difference = MathHelper.wrapDegrees(desired - bodyYaw);
+        float change = MathHelper.clamp(difference, -maximumDegrees, maximumDegrees);
+        float updated = bodyYaw + change;
+        bodyYaw = updated;
+        setYaw(updated);
+        return Math.abs(difference);
+    }
+
+    public void turnHeadToward(Vec3d position, float maximumYawDegrees, float maximumPitchDegrees,
+                               float maximumHeadBodyDifference) {
+        Vec3d delta = position.subtract(getEyePos());
+        if (delta.lengthSquared() < 0.000001D) {
+            return;
+        }
+        float desiredYaw = (float) (MathHelper.atan2(delta.z, delta.x) * 57.2957763671875D) - 90.0F;
+        float desiredPitch = (float) (-(MathHelper.atan2(delta.y,
+                Math.sqrt(delta.x * delta.x + delta.z * delta.z)) * 57.2957763671875D));
+        float boundedYaw = bodyYaw + MathHelper.clamp(MathHelper.wrapDegrees(desiredYaw - bodyYaw),
+                -maximumHeadBodyDifference, maximumHeadBodyDifference);
+        setHeadYaw(stepAngle(getHeadYaw(), boundedYaw, maximumYawDegrees));
+        setPitch(stepLinear(getPitch(), desiredPitch, maximumPitchDegrees));
+        grantLookAdvancement = true;
+    }
+
+    public void resetOriginalHead(float maximumYawDegrees, float maximumPitchDegrees) {
+        setHeadYaw(stepAngle(getHeadYaw(), bodyYaw, maximumYawDegrees));
+        setPitch(stepLinear(getPitch(), 0.0F, maximumPitchDegrees));
+    }
+
+    private static float stepAngle(float current, float target, float maximumDegrees) {
+        return current + MathHelper.clamp(MathHelper.wrapDegrees(target - current), -maximumDegrees, maximumDegrees);
+    }
+
+    private static float stepLinear(float current, float target, float maximumChange) {
+        return current + MathHelper.clamp(target - current, -maximumChange, maximumChange);
     }
 
     public boolean isSafeEchoPosition(Vec3d pos) {

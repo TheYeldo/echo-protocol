@@ -15,6 +15,11 @@
 
 ## Improved
 
+- Completely reworked The Original movement from intermittent teleport-like micro-steps to continuous server-tick movement with acceleration, braking, and real position-driven walk animation
+- Added bounded local waypoint planning, swept collision/hazard checks, gradual body rotation, independent head tracking, observation grace, and stuck recovery
+- Added distinct action plans for all nine Original event kinds, with purposeful pauses and bounded endings
+- Added seven Original movement test modes and a live operator status command
+- Added backward-compatible, clamped Original movement configuration while keeping version `0.4.0-alpha`
 - Event pacing and deterministic weighted selection
 - Disconnect and dimension-transfer cleanup
 - Existing configuration migration and safe clamping
@@ -33,6 +38,7 @@
 - New bounded histories are session-scoped in this alpha
 - Fabricated movement is scripted and stops safely when a loaded route is obstructed
 - Manual gameplay testing is required before merge, tag, or release
+- The Original's navigation is intentionally local and bounded; complex multi-floor routes, closed doors, ladders, and long paths may use a deliberate fallback and disappear
 
 ## Previous Releases
 

@@ -97,5 +97,8 @@
   "text.echoprotocol.command.habits_list": "Ограниченные привычки %1$s: %2$s. %3$s",
   "text.echoprotocol.command.habits_clear": "Очищено привычек для %1$s: %2$s.",
   "text.echoprotocol.command.director_history": "История директора %1$s: %2$s. %3$s",
-  "text.echoprotocol.command.director_clear": "Очищено событий директора для %1$s: %2$s."
+  "text.echoprotocol.command.director_clear": "Очищено событий директора для %1$s: %2$s.",
+  "text.echoprotocol.command.original_movement_test": "Тест движения Оригинала '%2$s' запущен для %1$s.",
+  "text.echoprotocol.command.original_unknown_movement": "Неизвестный тест движения Оригинала '%1$s'. Доступно: %2$s.",
+  "text.echoprotocol.command.original_status": "Состояние Оригинала для %1$s: %2$s"
 }

@@ -398,6 +398,25 @@ public record EchoConfig(
     public int recentEventHistorySize() { return v04.recentEventHistorySize; }
     public int strongEventSilenceMinutes() { return v04.strongEventSilenceMinutes; }
     public int joinEventGraceMinutes() { return v04.joinEventGraceMinutes; }
+    public float originalWalkSpeed() { return v04.originalWalkSpeed; }
+    public float originalSlowWalkSpeed() { return v04.originalSlowWalkSpeed; }
+    public float originalFastWalkSpeed() { return v04.originalFastWalkSpeed; }
+    public float originalMaximumSpeed() { return v04.originalMaximumSpeed; }
+    public float originalAcceleration() { return v04.originalAcceleration; }
+    public float originalDeceleration() { return v04.originalDeceleration; }
+    public float originalBodyTurnSpeedDegrees() { return v04.originalBodyTurnSpeedDegrees; }
+    public float originalHeadTurnSpeedDegrees() { return v04.originalHeadTurnSpeedDegrees; }
+    public float originalArrivalRadius() { return v04.originalArrivalRadius; }
+    public float originalMinimumMovementDistance() { return v04.originalMinimumMovementDistance; }
+    public float originalMaximumMovementDistance() { return v04.originalMaximumMovementDistance; }
+    public int originalMaximumWaypoints() { return v04.originalMaximumWaypoints; }
+    public int originalStuckWindowTicks() { return v04.originalStuckWindowTicks; }
+    public float originalStuckMinimumProgress() { return v04.originalStuckMinimumProgress; }
+    public int originalMaximumReplans() { return v04.originalMaximumReplans; }
+    public int originalObservationGraceTicks() { return v04.originalObservationGraceTicks; }
+    public int originalUnobservedGraceTicks() { return v04.originalUnobservedGraceTicks; }
+    public int originalMinimumPauseTicks() { return v04.originalMinimumPauseTicks; }
+    public int originalMaximumPauseTicks() { return v04.originalMaximumPauseTicks; }
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
@@ -504,6 +523,25 @@ public record EchoConfig(
         Integer recent_event_history_size;
         Integer strong_event_silence_minutes;
         Integer join_event_grace_minutes;
+        Float original_walk_speed;
+        Float original_slow_walk_speed;
+        Float original_fast_walk_speed;
+        Float original_maximum_speed;
+        Float original_acceleration;
+        Float original_deceleration;
+        Float original_body_turn_speed_degrees;
+        Float original_head_turn_speed_degrees;
+        Float original_arrival_radius;
+        Float original_minimum_movement_distance;
+        Float original_maximum_movement_distance;
+        Integer original_maximum_waypoints;
+        Integer original_stuck_window_ticks;
+        Float original_stuck_minimum_progress;
+        Integer original_maximum_replans;
+        Integer original_observation_grace_ticks;
+        Integer original_unobserved_grace_ticks;
+        Integer original_minimum_pause_ticks;
+        Integer original_maximum_pause_ticks;
     }
 
     public record V04Settings(
@@ -531,7 +569,26 @@ public record EchoConfig(
             boolean preventRepeatedEvents,
             int recentEventHistorySize,
             int strongEventSilenceMinutes,
-            int joinEventGraceMinutes
+            int joinEventGraceMinutes,
+            float originalWalkSpeed,
+            float originalSlowWalkSpeed,
+            float originalFastWalkSpeed,
+            float originalMaximumSpeed,
+            float originalAcceleration,
+            float originalDeceleration,
+            float originalBodyTurnSpeedDegrees,
+            float originalHeadTurnSpeedDegrees,
+            float originalArrivalRadius,
+            float originalMinimumMovementDistance,
+            float originalMaximumMovementDistance,
+            int originalMaximumWaypoints,
+            int originalStuckWindowTicks,
+            float originalStuckMinimumProgress,
+            int originalMaximumReplans,
+            int originalObservationGraceTicks,
+            int originalUnobservedGraceTicks,
+            int originalMinimumPauseTicks,
+            int originalMaximumPauseTicks
     ) {
         static V04Settings defaults() {
             return new V04Settings(true, 2, 4, 10, 0.72F, 2, 8,
@@ -539,12 +596,23 @@ public record EchoConfig(
                     true, 2, 35, 5,
                     true, 3, 25,
                     true, 12,
-                    true, true, 12, 20, 8);
+                    true, true, 12, 20, 8,
+                    0.09F, 0.065F, 0.13F, 0.16F, 0.012F, 0.018F,
+                    12.0F, 18.0F, 0.38F, 3.0F, 12.0F, 5,
+                    25, 0.20F, 3, 8, 14, 16, 70);
         }
 
         V04Settings validate() {
             int minPrefix = clamp(falseMemoryMinimumRealPrefixSeconds, 2, 60);
             int maxPrefix = clamp(Math.max(falseMemoryMaximumRealPrefixSeconds, minPrefix), minPrefix, 120);
+            float maximumSpeed = clampFloat(originalMaximumSpeed, 0.06F, 0.24F);
+            float walkSpeed = clampFloat(originalWalkSpeed, 0.03F, maximumSpeed);
+            float slowSpeed = clampFloat(originalSlowWalkSpeed, 0.02F, walkSpeed);
+            float fastSpeed = clampFloat(originalFastWalkSpeed, walkSpeed, maximumSpeed);
+            float minimumMovement = clampFloat(originalMinimumMovementDistance, 2.5F, 8.0F);
+            float maximumMovement = clampFloat(Math.max(originalMaximumMovementDistance, minimumMovement),
+                    minimumMovement, 16.0F);
+            int minimumPause = clamp(originalMinimumPauseTicks, 8, 100);
             return new V04Settings(
                     falseMemoriesEnabled,
                     clamp(falseMemoryMinimumStage, 0, 3),
@@ -570,7 +638,26 @@ public record EchoConfig(
                     preventRepeatedEvents,
                     clamp(recentEventHistorySize, 2, 32),
                     clamp(strongEventSilenceMinutes, 1, 1440),
-                    clamp(joinEventGraceMinutes, 1, 120));
+                    clamp(joinEventGraceMinutes, 1, 120),
+                    walkSpeed,
+                    slowSpeed,
+                    fastSpeed,
+                    maximumSpeed,
+                    clampFloat(originalAcceleration, 0.002F, 0.05F),
+                    clampFloat(originalDeceleration, 0.002F, 0.08F),
+                    clampFloat(originalBodyTurnSpeedDegrees, 2.0F, 30.0F),
+                    clampFloat(originalHeadTurnSpeedDegrees, 4.0F, 45.0F),
+                    clampFloat(originalArrivalRadius, 0.20F, 0.75F),
+                    minimumMovement,
+                    maximumMovement,
+                    clamp(originalMaximumWaypoints, 1, 5),
+                    clamp(originalStuckWindowTicks, 10, 60),
+                    clampFloat(originalStuckMinimumProgress, 0.05F, 1.0F),
+                    clamp(originalMaximumReplans, 1, 5),
+                    clamp(originalObservationGraceTicks, 3, 30),
+                    clamp(originalUnobservedGraceTicks, 6, 60),
+                    minimumPause,
+                    clamp(Math.max(originalMaximumPauseTicks, minimumPause), minimumPause, 200));
         }
 
         static V04Settings fromRaw(Raw raw, V04Settings defaults) {
@@ -599,7 +686,26 @@ public record EchoConfig(
                     raw.prevent_repeated_events == null ? defaults.preventRepeatedEvents : raw.prevent_repeated_events,
                     raw.recent_event_history_size == null ? defaults.recentEventHistorySize : raw.recent_event_history_size,
                     raw.strong_event_silence_minutes == null ? defaults.strongEventSilenceMinutes : raw.strong_event_silence_minutes,
-                    raw.join_event_grace_minutes == null ? defaults.joinEventGraceMinutes : raw.join_event_grace_minutes);
+                    raw.join_event_grace_minutes == null ? defaults.joinEventGraceMinutes : raw.join_event_grace_minutes,
+                    raw.original_walk_speed == null ? defaults.originalWalkSpeed : raw.original_walk_speed,
+                    raw.original_slow_walk_speed == null ? defaults.originalSlowWalkSpeed : raw.original_slow_walk_speed,
+                    raw.original_fast_walk_speed == null ? defaults.originalFastWalkSpeed : raw.original_fast_walk_speed,
+                    raw.original_maximum_speed == null ? defaults.originalMaximumSpeed : raw.original_maximum_speed,
+                    raw.original_acceleration == null ? defaults.originalAcceleration : raw.original_acceleration,
+                    raw.original_deceleration == null ? defaults.originalDeceleration : raw.original_deceleration,
+                    raw.original_body_turn_speed_degrees == null ? defaults.originalBodyTurnSpeedDegrees : raw.original_body_turn_speed_degrees,
+                    raw.original_head_turn_speed_degrees == null ? defaults.originalHeadTurnSpeedDegrees : raw.original_head_turn_speed_degrees,
+                    raw.original_arrival_radius == null ? defaults.originalArrivalRadius : raw.original_arrival_radius,
+                    raw.original_minimum_movement_distance == null ? defaults.originalMinimumMovementDistance : raw.original_minimum_movement_distance,
+                    raw.original_maximum_movement_distance == null ? defaults.originalMaximumMovementDistance : raw.original_maximum_movement_distance,
+                    raw.original_maximum_waypoints == null ? defaults.originalMaximumWaypoints : raw.original_maximum_waypoints,
+                    raw.original_stuck_window_ticks == null ? defaults.originalStuckWindowTicks : raw.original_stuck_window_ticks,
+                    raw.original_stuck_minimum_progress == null ? defaults.originalStuckMinimumProgress : raw.original_stuck_minimum_progress,
+                    raw.original_maximum_replans == null ? defaults.originalMaximumReplans : raw.original_maximum_replans,
+                    raw.original_observation_grace_ticks == null ? defaults.originalObservationGraceTicks : raw.original_observation_grace_ticks,
+                    raw.original_unobserved_grace_ticks == null ? defaults.originalUnobservedGraceTicks : raw.original_unobserved_grace_ticks,
+                    raw.original_minimum_pause_ticks == null ? defaults.originalMinimumPauseTicks : raw.original_minimum_pause_ticks,
+                    raw.original_maximum_pause_ticks == null ? defaults.originalMaximumPauseTicks : raw.original_maximum_pause_ticks);
         }
 
         void writeTo(Raw raw) {
@@ -628,6 +734,25 @@ public record EchoConfig(
             raw.recent_event_history_size = recentEventHistorySize;
             raw.strong_event_silence_minutes = strongEventSilenceMinutes;
             raw.join_event_grace_minutes = joinEventGraceMinutes;
+            raw.original_walk_speed = originalWalkSpeed;
+            raw.original_slow_walk_speed = originalSlowWalkSpeed;
+            raw.original_fast_walk_speed = originalFastWalkSpeed;
+            raw.original_maximum_speed = originalMaximumSpeed;
+            raw.original_acceleration = originalAcceleration;
+            raw.original_deceleration = originalDeceleration;
+            raw.original_body_turn_speed_degrees = originalBodyTurnSpeedDegrees;
+            raw.original_head_turn_speed_degrees = originalHeadTurnSpeedDegrees;
+            raw.original_arrival_radius = originalArrivalRadius;
+            raw.original_minimum_movement_distance = originalMinimumMovementDistance;
+            raw.original_maximum_movement_distance = originalMaximumMovementDistance;
+            raw.original_maximum_waypoints = originalMaximumWaypoints;
+            raw.original_stuck_window_ticks = originalStuckWindowTicks;
+            raw.original_stuck_minimum_progress = originalStuckMinimumProgress;
+            raw.original_maximum_replans = originalMaximumReplans;
+            raw.original_observation_grace_ticks = originalObservationGraceTicks;
+            raw.original_unobserved_grace_ticks = originalUnobservedGraceTicks;
+            raw.original_minimum_pause_ticks = originalMinimumPauseTicks;
+            raw.original_maximum_pause_ticks = originalMaximumPauseTicks;
         }
     }
 }

@@ -7,6 +7,7 @@ import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.echo.EchoEventDirector;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import dev.yeldos.echoprotocol.echo.OriginalEventKind;
+import dev.yeldos.echoprotocol.original.OriginalMovementMode;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.stage.EchoStage;
 import dev.yeldos.echoprotocol.stage.FamiliarLocation;
@@ -100,6 +101,25 @@ public final class EchoCommands {
                                                     context.getSource().sendError(Text.translatable("text.echoprotocol.command.original_failed",
                                                             player.getName().getString()));
                                                     return 0;
+                                                })))
+                                .then(CommandManager.literal("movement-test")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .then(CommandManager.argument("mode", StringArgumentType.word())
+                                                        .suggests((context, builder) -> net.minecraft.command.CommandSource.suggestMatching(
+                                                                java.util.Arrays.stream(OriginalMovementMode.values())
+                                                                        .map(OriginalMovementMode::commandName), builder))
+                                                        .executes(context -> originalMovementTest(context.getSource(),
+                                                                EntityArgumentType.getPlayer(context, "player"), director,
+                                                                StringArgumentType.getString(context, "mode"))))))
+                                .then(CommandManager.literal("status")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    String status = director.originalStatus(player);
+                                                    context.getSource().sendFeedback(() -> Text.translatable(
+                                                            "text.echoprotocol.command.original_status",
+                                                            player.getName().getString(), status), false);
+                                                    return 1;
                                                 })))
                                 .then(CommandManager.literal("stop")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
@@ -352,6 +372,27 @@ public final class EchoCommands {
                     .map(OriginalEventKind::commandName)
                     .collect(Collectors.joining(", "));
             source.sendError(Text.translatable("text.echoprotocol.command.original_unknown_event", eventName, allowed));
+            return 0;
+        }
+    }
+
+    private static int originalMovementTest(net.minecraft.server.command.ServerCommandSource source,
+                                            ServerPlayerEntity player, EchoEventDirector director, String modeName) {
+        try {
+            OriginalMovementMode mode = OriginalMovementMode.fromCommand(modeName);
+            if (director.spawnOriginalMovementTest(player, mode, EchoProtocol.config())) {
+                source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.original_movement_test",
+                        player.getName().getString(), mode.commandName()), true);
+                return 1;
+            }
+            source.sendError(Text.translatable("text.echoprotocol.command.original_failed",
+                    player.getName().getString()));
+            return 0;
+        } catch (IllegalArgumentException exception) {
+            String allowed = java.util.Arrays.stream(OriginalMovementMode.values())
+                    .map(OriginalMovementMode::commandName).collect(Collectors.joining(", "));
+            source.sendError(Text.translatable("text.echoprotocol.command.original_unknown_movement",
+                    modeName, allowed));
             return 0;
         }
     }

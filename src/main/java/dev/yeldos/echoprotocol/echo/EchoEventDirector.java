@@ -20,6 +20,7 @@ import dev.yeldos.echoprotocol.panic.PanicImprint;
 import dev.yeldos.echoprotocol.panic.PanicImprintManager;
 import dev.yeldos.echoprotocol.panic.PanicTriggerType;
 import dev.yeldos.echoprotocol.peripheral.PeripheralEchoBehavior;
+import dev.yeldos.echoprotocol.original.OriginalMovementMode;
 import dev.yeldos.echoprotocol.recording.PlayerRecording;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
@@ -267,6 +268,11 @@ public final class EchoEventDirector {
     }
 
     public boolean spawnOriginal(ServerPlayerEntity target, boolean forced, OriginalEventKind requestedEvent, EchoConfig config) {
+        return spawnOriginal(target, forced, requestedEvent, null, config);
+    }
+
+    private boolean spawnOriginal(ServerPlayerEntity target, boolean forced, OriginalEventKind requestedEvent,
+                                  OriginalMovementMode movementTest, EchoConfig config) {
         if (!config.originalEnabled()) {
             return false;
         }
@@ -283,7 +289,7 @@ public final class EchoEventDirector {
                 : location == null ? target.getPos() : location.pos().toCenterPos();
         OriginalEventKind eventKind = requestedEvent != null ? requestedEvent
                 : habit != null ? chooseOriginalEvent(habit) : chooseOriginalEvent(location);
-        Optional<Vec3d> spawnPos = SafeEchoPositionFinder.findSpawn(world, target, anchor, config);
+        Optional<Vec3d> spawnPos = SafeEchoPositionFinder.findOriginalStart(world, target, anchor, config);
         if (spawnPos.isEmpty()) {
             spawnPos = SafeEchoPositionFinder.findSpawn(world, target,
                     target.getPos().subtract(target.getRotationVec(1.0F).multiply(config.minimumEchoSpawnDistance())), config);
@@ -296,11 +302,11 @@ public final class EchoEventDirector {
                 ? recording.latest() : RecordedFrame.capture(target, stageManager.tick(), null);
         ItemStack heldItem = habit != null && !habit.visualItem().isEmpty()
                 ? habit.visualItem() : chooseFamiliarItem(recording, target);
+        List<Vec3d> knownLocations = collectOriginalAnchors(target);
         EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, false);
         EchoEntity echo = createEcho(target, List.of(frame), context,
-                new OriginalEchoBehavior(context, eventKind, anchor, heldItem), spawnPos.get(),
+                new OriginalEchoBehavior(context, eventKind, anchor, knownLocations, heldItem, movementTest), spawnPos.get(),
                 target.bodyYaw + 180.0F, target.getPitch(), config);
-        echo.setHeldItemVisual(heldItem);
         registerEcho(target, echo);
         state.incrementTotalEvents();
         state.incrementEchoEvent(EchoType.ORIGINAL);
@@ -315,6 +321,27 @@ public final class EchoEventDirector {
 
     public boolean spawnOriginalConfrontation(ServerPlayerEntity target, EchoConfig config) {
         return spawnOriginal(target, true, OriginalEventKind.CONFRONTATION, config);
+    }
+
+    public boolean spawnOriginalMovementTest(ServerPlayerEntity target, OriginalMovementMode mode, EchoConfig config) {
+        OriginalEventKind event = switch (mode) {
+            case BED -> OriginalEventKind.YOUR_BED;
+            case DOORWAY -> OriginalEventKind.EMPTY_ROOM;
+            case APPROACH -> OriginalEventKind.CONFRONTATION;
+            default -> OriginalEventKind.WAITING;
+        };
+        return spawnOriginal(target, true, event, mode, config);
+    }
+
+    public String originalStatus(ServerPlayerEntity target) {
+        cleanupActiveEchoes();
+        for (EchoEntity echo : activeEchoes.getOrDefault(target.getUuid(), List.of())) {
+            if (!echo.isRemoved() && echo.echoType() == EchoType.ORIGINAL
+                    && echo.behavior() instanceof OriginalEchoBehavior original) {
+                return original.status(echo);
+            }
+        }
+        return "inactive";
     }
 
     public int stopEvents(ServerPlayerEntity target) {
@@ -612,10 +639,11 @@ public final class EchoEventDirector {
             return Optional.empty();
         }
         String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        double localRadius = Math.max(12.0D, config.originalMaximumMovementDistance() + 4.0D);
         return habits.habits(target.getUuid()).stream()
                 .filter(habit -> habit.dimension().equals(dimension))
                 .filter(habit -> target.getServerWorld().isChunkLoaded(habit.position()))
-                .filter(habit -> habit.position().getSquaredDistance(target.getBlockPos()) <= 96.0D * 96.0D)
+                .filter(habit -> habit.position().getSquaredDistance(target.getBlockPos()) <= localRadius * localRadius)
                 .findFirst();
     }
 
@@ -624,10 +652,11 @@ public final class EchoEventDirector {
             return Optional.empty();
         }
         String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        double localRadius = Math.max(12.0D, config.originalMaximumMovementDistance() + 4.0D);
         return stageManager.familiarLocations(target).stream()
                 .filter(location -> location.dimension().equals(dimension))
                 .filter(location -> target.getServerWorld().isChunkLoaded(location.pos()))
-                .filter(location -> location.pos().getSquaredDistance(target.getBlockPos()) <= 96.0D * 96.0D)
+                .filter(location -> location.pos().getSquaredDistance(target.getBlockPos()) <= localRadius * localRadius)
                 .sorted((left, right) -> Integer.compare(right.visits(), left.visits())).findFirst();
     }
 
@@ -641,7 +670,9 @@ public final class EchoEventDirector {
         return switch (location.type()) {
             case BED -> OriginalEventKind.YOUR_BED;
             case CHEST -> OriginalEventKind.WRONG_OWNER;
-            case CRAFTING, FURNACE, IDLE, MANUAL, HOME -> OriginalEventKind.OCCUPIED_PLACE;
+            case CRAFTING, FURNACE, MANUAL -> OriginalEventKind.OCCUPIED_PLACE;
+            case HOME -> OriginalEventKind.ALREADY_HOME;
+            case IDLE -> OriginalEventKind.WAITING;
             case DOORWAY -> OriginalEventKind.EMPTY_ROOM;
             case PORTAL, MINE_ENTRANCE -> OriginalEventKind.EARLIER_THAN_YOU;
         };
@@ -652,7 +683,9 @@ public final class EchoEventDirector {
             case SLEEPING -> OriginalEventKind.YOUR_BED;
             case STORAGE -> OriginalEventKind.WRONG_OWNER;
             case PORTAL, ENTRY_ROUTE -> OriginalEventKind.EARLIER_THAN_YOU;
-            case CRAFTING, FURNACE, IDLE, FREQUENT_ITEM -> OriginalEventKind.OCCUPIED_PLACE;
+            case CRAFTING, FURNACE -> OriginalEventKind.OCCUPIED_PLACE;
+            case IDLE -> OriginalEventKind.WAITING;
+            case FREQUENT_ITEM -> OriginalEventKind.FAMILIAR_ITEM;
         };
     }
 
@@ -665,6 +698,39 @@ public final class EchoEventDirector {
             }
         }
         return target.getMainHandStack().copyWithCount(Math.min(1, target.getMainHandStack().getCount()));
+    }
+
+    private List<Vec3d> collectOriginalAnchors(ServerPlayerEntity target) {
+        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        List<Vec3d> result = new ArrayList<>(5);
+        for (PlayerHabitSummary.Habit habit : habits.habits(target.getUuid())) {
+            if (result.size() >= 5) {
+                break;
+            }
+            if (habit.dimension().equals(dimension) && target.getServerWorld().isChunkLoaded(habit.position())
+                    && habit.position().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D) {
+                addDistinctAnchor(result, habit.position().toCenterPos());
+            }
+        }
+        for (FamiliarLocation location : stageManager.familiarLocations(target)) {
+            if (result.size() >= 5) {
+                break;
+            }
+            if (location.dimension().equals(dimension) && target.getServerWorld().isChunkLoaded(location.pos())
+                    && location.pos().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D) {
+                addDistinctAnchor(result, location.pos().toCenterPos());
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static void addDistinctAnchor(List<Vec3d> anchors, Vec3d candidate) {
+        for (Vec3d existing : anchors) {
+            if (existing.squaredDistanceTo(candidate) < 2.5D * 2.5D) {
+                return;
+            }
+        }
+        anchors.add(candidate);
     }
 
     private void cleanupActiveEchoes() {

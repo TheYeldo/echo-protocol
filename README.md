@@ -44,7 +44,7 @@ No global Gradle installation is required. The generated mod JAR is written to `
 - Mimic Echoes copy the target player's current movement with a delay and may rarely enter a scripted hostile encounter when enabled.
 - Peripheral Echoes briefly appear outside the center of the target's view, use an observation grace period, and disappear or reappear once at another loaded safe location.
 - Audio Residue replays only allow-listed Minecraft sound identifiers from bounded interaction history; it never records audio, microphones, voice chat, or private messages.
-- The Original appears only after rare late-game Stage 3 requirements. It uses the target player's skin, familiar locations, and bounded habit summaries, moves independently, and suggests replacement without becoming a normal boss.
+- The Original appears only after rare late-game Stage 3 requirements. It uses the target player's skin, familiar locations, and bounded habit summaries. Its deliberate local movement uses event-specific action plans, acceleration and deceleration, observation-aware pauses, bounded waypoint planning, and stuck recovery without becoming a normal mob or boss.
 
 ## Multiplayer and Privacy
 
@@ -127,6 +127,25 @@ The config file is created at `config/echo_protocol.json` on first server start.
   "original_maximum_active_per_player": 1,
   "original_maximum_familiar_locations": 16,
   "original_near_full_opacity": 0.94,
+  "original_walk_speed": 0.09,
+  "original_slow_walk_speed": 0.065,
+  "original_fast_walk_speed": 0.13,
+  "original_maximum_speed": 0.16,
+  "original_acceleration": 0.012,
+  "original_deceleration": 0.018,
+  "original_body_turn_speed_degrees": 12.0,
+  "original_head_turn_speed_degrees": 18.0,
+  "original_arrival_radius": 0.38,
+  "original_minimum_movement_distance": 3.0,
+  "original_maximum_movement_distance": 12.0,
+  "original_maximum_waypoints": 5,
+  "original_stuck_window_ticks": 25,
+  "original_stuck_minimum_progress": 0.20,
+  "original_maximum_replans": 3,
+  "original_observation_grace_ticks": 8,
+  "original_unobserved_grace_ticks": 14,
+  "original_minimum_pause_ticks": 16,
+  "original_maximum_pause_ticks": 70,
   "false_memories_enabled": true,
   "false_memory_minimum_stage": 2,
   "false_memory_minimum_real_prefix_seconds": 4,
@@ -174,6 +193,8 @@ All commands require permission level 2.
 - `/echo_protocol original spawn <player>`
 - `/echo_protocol original event <player> <occupied_place|already_home|your_bed|wrong_owner|earlier_than_you|familiar_item|waiting|empty_room|confrontation>`
 - `/echo_protocol original confront <player>`
+- `/echo_protocol original movement-test <player> <walk|fast-walk|approach|retreat|patrol|doorway|bed>`
+- `/echo_protocol original status <player>`
 - `/echo_protocol original stop <player>`
 - `/echo_protocol familiar list <player>`
 - `/echo_protocol familiar clear <player>`
@@ -207,21 +228,23 @@ All commands require permission level 2.
 
 ## Memory and Performance Notes
 
-Recording is bounded per online player. With the default interval of 2 ticks and 10 minutes of history, each player stores at most 6,000 movement frames plus a small bounded set of sound/chat markers. Mimic Echoes use a separate bounded delayed movement queue of about 220 frames while active. Stage 3 adds up to `original_maximum_familiar_locations` lightweight familiar-location entries per player; the default is 16 entries containing only type, dimension, block position, visit count, and last-seen tick. Skin rendering uses Minecraft's client skin provider and a bounded 64-entry client-side resolver cache; the server stores only the target UUID needed for allowed viewers. Safe spawn checks use at most `safe_spawn_attempts` local attempts and never force-load chunks. The implementation avoids pathfinding, chunk force-loading, block entity ticking, and global entity scans. Echo entities are short-lived, non-colliding, server-directed events.
+Recording is bounded per online player. With the default interval of 2 ticks and 10 minutes of history, each player stores at most 6,000 movement frames plus a small bounded set of sound/chat markers. Mimic Echoes use a separate bounded delayed movement queue of about 220 frames while active. Stage 3 adds up to `original_maximum_familiar_locations` lightweight familiar-location entries per player; the default is 16 entries containing only type, dimension, block position, visit count, and last-seen tick. An active Original caches at most 12 action segments and 5 local waypoints. Route calculation examines at most 320 already-loaded local positions and runs only when a segment starts or recovery is needed, never every tick. Skin rendering uses Minecraft's client skin provider and a bounded 64-entry client-side resolver cache; the server stores only the target UUID needed for allowed viewers. Safe spawn checks use at most `safe_spawn_attempts` local attempts and never force-load chunks. The implementation avoids full mob navigation, chunk force-loading, block entity ticking, and global entity scans. Echo entities are short-lived, non-colliding, server-directed events.
 
 False Memory plans are capped at 120 authentic and 160 fabricated frames. Each player has at most 4 Panic Imprints by default (120 frames each), 24 lightweight Audio Residue identifiers, 12 habit summaries, and 12 director-history entries. These structures are cleared safely at server shutdown; session counters and active entities are cleaned on disconnect or dimension transfer.
 
 Estimated additional 0.4 overhead is about 150–350 KB per active player at defaults, depending mostly on held-item component data in Panic Imprint frames. Combined with the existing 6,000-frame movement history, total use remains roughly 1.2–2.4 MB per active player on a typical 64-bit JVM. No new system scans the full world or force-loads chunks.
 
+The reworked Original controller retains roughly 3–8 KB per active event for its action plan, observation counters, and waypoints. A route calculation may transiently allocate roughly 50–150 KB for at most 320 local search nodes; that data is released after planning and is not rebuilt every tick.
+
 ## Known Limitations
 
-- Some Echo behavior is scripted rather than using advanced navigation.
+- Echo behavior uses bounded scripted plans rather than general-purpose mob navigation.
 - Recordings are kept in memory and are not preserved across server restarts.
 - Panic Imprints, Audio Residue history, habit summaries, and adaptive event history are session-scoped in this alpha; progression and familiar locations remain persistent.
 - Sound design currently relies mostly on compatible vanilla sound events.
 - Some menu and portal-state detection is limited by server-side information.
 - The Original's familiar-location system is heuristic and bounded; it does not inspect container contents or infer detailed base ownership.
-- The Original uses scripted safe movement and disappearance instead of normal hostile mob AI.
+- The Original uses bounded local waypoint planning rather than advanced navigation. Complex multi-floor routes, closed doors, ladders, and long paths may deliberately fall back or disappear.
 - Fabricated movement uses bounded scripted segments rather than general pathfinding; a blocked route may end early and disappear safely.
 
 ## Test Checklist
@@ -268,6 +291,9 @@ Estimated additional 0.4 overhead is about 150–350 KB per active player at def
 - The Original never changes blocks or inventories.
 - Optional Original text is target-only.
 - Peaceful disables optional Original damage.
+- Every Original event finishes within a bounded lifetime and never persists to disk.
+- Original walking updates each server tick, accelerates, brakes near its destination, and drives real limb animation from position changes.
+- Body rotation, independent head tracking, observation grace, blocked-route replanning, and stuck fallback behave without snapping or endless wall pushing.
 
 ## Manual In-Game Smoke Test
 
@@ -284,10 +310,13 @@ Estimated additional 0.4 overhead is about 150–350 KB per active player at def
 11. Run `/echo_protocol mimic hostile <your_name>` and confirm the event ends quickly and respects damage limits.
 12. Toggle `shared_echoes` in the config, run `/echo_protocol reload`, and compare visibility with another nearby player.
 13. Run `/echo_protocol familiar add-current <your_name>`, then `/echo_protocol stage set <your_name> 3`.
-14. Run `/echo_protocol original spawn <your_name>` and confirm The Original uses your skin, holds a visual familiar item, and leaves without modifying blocks or inventories.
-15. Run `/echo_protocol original confront <your_name>` and confirm the confrontation ends without a boss bar or normal chase.
-16. Run `/echo_protocol false-memory test-deviation <your_name>` and confirm an authentic route prefix transitions into a harmless fabricated action.
-17. At low health, walk for several seconds, run `/echo_protocol panic capture-current <your_name>`, then `/echo_protocol panic replay <your_name>`.
-18. Run `/echo_protocol peripheral spawn <your_name>` and turn toward the edge-of-view Echo; confirm it does not flicker and reappears at most once.
-19. Interact with a door, chest, crafting table, or furnace, then run `/echo_protocol audio-residue play <your_name>`.
-20. Run `/echo_protocol habits list <your_name>` and `/echo_protocol director history <your_name>`; confirm neither command prints movement frames, private messages, or profile data.
+14. Run every `/echo_protocol original event <your_name> <event>` variant: `occupied_place`, `already_home`, `your_bed`, `wrong_owner`, `earlier_than_you`, `familiar_item`, `waiting`, `empty_room`, and `confrontation`.
+15. For each variant, confirm deliberate 3+ block movement, visible limb motion, smooth body/head turns, purposeful pauses, no wall clipping, no world changes, and a bounded clean ending.
+16. Run `/echo_protocol original movement-test <your_name> walk`, `fast-walk`, `approach`, `retreat`, `patrol`, `doorway`, and `bed` in a small house, corridor, stairs, outdoors, near a closed doorway, bed, chest, portal, and a blocked direct route. Use `/echo_protocol original status <your_name>` while each test is active.
+17. Repeat an Original movement test under temporary low TPS if practical and confirm speed remains tick-based without snapping or endless stuck retries.
+18. Run `/echo_protocol original confront <your_name>` and confirm the confrontation stops about 2.5–3.2 blocks away, reacts to approach/retreat, and ends without a boss bar or indefinite chase.
+19. Run `/echo_protocol false-memory test-deviation <your_name>` and confirm an authentic route prefix transitions into a harmless fabricated action.
+20. At low health, walk for several seconds, run `/echo_protocol panic capture-current <your_name>`, then `/echo_protocol panic replay <your_name>`.
+21. Run `/echo_protocol peripheral spawn <your_name>` and turn toward the edge-of-view Echo; confirm it does not flicker and reappears at most once.
+22. Interact with a door, chest, crafting table, or furnace, then run `/echo_protocol audio-residue play <your_name>`.
+23. Run `/echo_protocol habits list <your_name>` and `/echo_protocol director history <your_name>`; confirm neither command prints movement frames, private messages, or profile data.
