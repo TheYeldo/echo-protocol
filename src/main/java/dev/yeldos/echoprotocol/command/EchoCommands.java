@@ -132,6 +132,87 @@ public final class EchoCommands {
                                                             player.getName().getString(), count), true);
                                                     return 1;
                                                 }))))
+                        .then(CommandManager.literal("false-memory")
+                                .then(CommandManager.literal("spawn")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> falseMemory(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director, false))))
+                                .then(CommandManager.literal("test-deviation")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> falseMemory(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director, true)))))
+                        .then(CommandManager.literal("panic")
+                                .then(CommandManager.literal("list")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> listPanic(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director))))
+                                .then(CommandManager.literal("capture-current")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> panicCapture(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director))))
+                                .then(CommandManager.literal("replay")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> panicReplay(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director))))
+                                .then(CommandManager.literal("clear")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    int count = director.clearPanic(player.getUuid());
+                                                    context.getSource().sendFeedback(() -> Text.translatable(
+                                                            "text.echoprotocol.command.panic_clear", player.getName().getString(), count), true);
+                                                    return count;
+                                                }))))
+                        .then(CommandManager.literal("peripheral")
+                                .then(CommandManager.literal("spawn")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> simpleSpawn(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"),
+                                                        director.spawnPeripheral(EntityArgumentType.getPlayer(context, "player"), EchoProtocol.config(), true),
+                                                        "peripheral")))))
+                        .then(CommandManager.literal("audio-residue")
+                                .then(CommandManager.literal("play")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> simpleSpawn(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"),
+                                                        director.playAudioResidue(EntityArgumentType.getPlayer(context, "player"), EchoProtocol.config(), true),
+                                                        "audio-residue")))))
+                        .then(CommandManager.literal("habits")
+                                .then(CommandManager.literal("list")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> listHabits(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director))))
+                                .then(CommandManager.literal("clear")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    int count = director.clearHabits(player.getUuid());
+                                                    context.getSource().sendFeedback(() -> Text.translatable(
+                                                            "text.echoprotocol.command.habits_clear", player.getName().getString(), count), true);
+                                                    return count;
+                                                }))))
+                        .then(CommandManager.literal("director")
+                                .then(CommandManager.literal("status")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    context.getSource().sendFeedback(() -> Text.literal("Echo Protocol: "
+                                                            + director.status(player, EchoProtocol.config())), false);
+                                                    return 1;
+                                                })))
+                                .then(CommandManager.literal("history")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> listHistory(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director))))
+                                .then(CommandManager.literal("clear-history")
+                                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                                .executes(context -> {
+                                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    int count = director.clearHistory(player.getUuid());
+                                                    context.getSource().sendFeedback(() -> Text.translatable(
+                                                            "text.echoprotocol.command.director_clear", player.getName().getString(), count), true);
+                                                    return count;
+                                                }))))
                         .then(CommandManager.literal("skin")
                                 .then(CommandManager.literal("status")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
@@ -300,6 +381,70 @@ public final class EchoCommands {
         source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.sound_test",
                 player.getName().getString(), type.name().toLowerCase(java.util.Locale.ROOT)), false);
         return 1;
+    }
+
+    private static int falseMemory(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                   EchoEventDirector director, boolean forceDeviation) {
+        return simpleSpawn(source, player,
+                director.spawnFalseMemory(player, true, forceDeviation, EchoProtocol.config()),
+                forceDeviation ? "false-memory deviation" : "false-memory");
+    }
+
+    private static int panicCapture(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                    EchoEventDirector director) {
+        return simpleSpawn(source, player, director.capturePanic(player, EchoProtocol.config()), "panic capture");
+    }
+
+    private static int panicReplay(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                   EchoEventDirector director) {
+        return simpleSpawn(source, player, director.replayPanic(player, EchoProtocol.config(), true), "panic replay");
+    }
+
+    private static int listPanic(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                 EchoEventDirector director) {
+        var imprints = director.panicImprints(player.getUuid());
+        String preview = imprints.stream().limit(8)
+                .map(imprint -> imprint.triggerType().name().toLowerCase(Locale.ROOT) + ":"
+                        + imprint.healthCategory().name().toLowerCase(Locale.ROOT) + "@" + imprint.capturedTick())
+                .collect(Collectors.joining(", "));
+        source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.panic_list",
+                player.getName().getString(), imprints.size(), preview), false);
+        return imprints.size();
+    }
+
+    private static int listHabits(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                  EchoEventDirector director) {
+        var habits = director.habits(player.getUuid());
+        String preview = habits.stream().limit(12)
+                .map(habit -> habit.type().name().toLowerCase(Locale.ROOT) + "@"
+                        + habit.position().getX() + "," + habit.position().getY() + "," + habit.position().getZ()
+                        + " x" + habit.observations())
+                .collect(Collectors.joining("; "));
+        source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.habits_list",
+                player.getName().getString(), habits.size(), preview), false);
+        return habits.size();
+    }
+
+    private static int listHistory(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                   EchoEventDirector director) {
+        var history = director.history(player.getUuid());
+        String preview = history.stream().limit(12)
+                .map(entry -> entry.category().name().toLowerCase(Locale.ROOT) + "@" + entry.tick())
+                .collect(Collectors.joining(", "));
+        source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.director_history",
+                player.getName().getString(), history.size(), preview), false);
+        return history.size();
+    }
+
+    private static int simpleSpawn(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                   boolean success, String event) {
+        if (success) {
+            source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.v04_success",
+                    event, player.getName().getString()), true);
+            return 1;
+        }
+        source.sendError(Text.translatable("text.echoprotocol.command.v04_failed", event, player.getName().getString()));
+        return 0;
     }
 
     private static void setDebug(boolean enabled) {

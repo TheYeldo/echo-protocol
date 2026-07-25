@@ -146,6 +146,7 @@ public final class PlayerEchoState {
             case CORRUPTED -> corruptedEvents++;
             case MIMIC -> mimicEvents++;
             case ORIGINAL -> originalEvents++;
+            case FALSE_MEMORY -> memoryEvents++;
         }
     }
 

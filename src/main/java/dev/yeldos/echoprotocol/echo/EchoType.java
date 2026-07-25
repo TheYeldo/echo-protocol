@@ -4,5 +4,6 @@ public enum EchoType {
     MEMORY,
     CORRUPTED,
     MIMIC,
-    ORIGINAL
+    ORIGINAL,
+    FALSE_MEMORY
 }

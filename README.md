@@ -2,7 +2,7 @@
 
 Echo Protocol is a standalone Fabric mod for Minecraft Java Edition 1.21.1. The world records short, bounded slices of a player's recent movement and later replays distorted memories as translucent Echoes.
 
-This is an alpha release. Features are playable and manually tested, but behavior, configuration defaults, and save data may change before a stable release. The `0.3.0-alpha` development branch adds Stage 3: The Original and should be tested before merging or tagging.
+This is an alpha release. Features are playable, but behavior, configuration defaults, and save data may change before a stable release. The `0.4.0-alpha` development branch adds False Memories and must receive manual gameplay testing before merging or tagging.
 
 ## Requirements
 
@@ -13,36 +13,42 @@ This is an alpha release. Features are playable and manually tested, but behavio
 
 ## Build
 
-```powershell
-.\gradlew.bat build
-```
-
-On Unix-like systems:
+Linux:
 
 ```sh
-./gradlew build
+chmod +x gradlew
+./gradlew clean build
 ```
 
-The generated mod JAR is written to `build/libs/echo-protocol-0.3.0-alpha.jar`.
+Windows:
+
+```powershell
+gradlew.bat clean build
+```
+
+No global Gradle installation is required. The generated mod JAR is written to `build/libs/echo-protocol-0.4.0-alpha.jar`.
 
 ## Installation
 
 1. Install Minecraft Java Edition 1.21.1.
 2. Install Fabric Loader 0.16.14 or a compatible 1.21.1 loader.
 3. Install Fabric API 0.116.13+1.21.1 in the `mods` folder.
-4. Place `echo-protocol-0.3.0-alpha.jar` in the same `mods` folder.
+4. Place `echo-protocol-0.4.0-alpha.jar` in the same `mods` folder.
 5. Launch the client or dedicated server with Java 21.
 
 ## Echo Types
 
 - Memory Echoes replay a previous route from the target player's bounded movement history.
+- False Memories begin with authentic recorded frames, then follow a bounded deterministic server-side deviation plan. They keep the target's skin, pose, rotation, and held item during the authentic prefix and are not labelled in normal play.
 - Corrupted Echoes begin as a replay, then may desynchronize, watch, approach, hide, and fade.
 - Mimic Echoes copy the target player's current movement with a delay and may rarely enter a scripted hostile encounter when enabled.
-- The Original appears only after rare late-game Stage 3 requirements. It uses the target player's skin and familiar locations, moves independently, and suggests replacement without becoming a normal boss.
+- Peripheral Echoes briefly appear outside the center of the target's view, use an observation grace period, and disappear or reappear once at another loaded safe location.
+- Audio Residue replays only allow-listed Minecraft sound identifiers from bounded interaction history; it never records audio, microphones, voice chat, or private messages.
+- The Original appears only after rare late-game Stage 3 requirements. It uses the target player's skin, familiar locations, and bounded habit summaries, moves independently, and suggests replacement without becoming a normal boss.
 
 ## Multiplayer and Privacy
 
-Echo Protocol supports dedicated servers and multiplayer. By default, `shared_echoes` is `false`: private Echo entities are server-filtered so unrelated nearby players are not allowed to track the private Echo entity, and private Echo sounds, particles, replay state, Original text events, and chat echoes are sent only to the target player's client. Familiar-location data is stored server-side and is never sent to unrelated clients. When `shared_echoes` is `true`, nearby players may see and hear Echo entities/effects normally, but private text and familiarity data remain target-only.
+Echo Protocol supports dedicated servers and multiplayer. By default, `shared_echoes` is `false`: a server tracking filter prevents unrelated clients from receiving private Echo spawn and movement packets. Private Echo sounds, particles, False Memory events, Panic Imprint replays, Audio Residue, Original text, and chat echoes are target-only. Full recordings, familiar locations, Panic metadata, habit summaries, and event history remain server-side. When `shared_echoes` is `true`, nearby players may see and hear appropriate public entities/effects, but private metadata and summaries remain target-only.
 
 ## Configuration
 
@@ -120,11 +126,36 @@ The config file is created at `config/echo_protocol.json` on first server start.
   "original_damage": 4.0,
   "original_maximum_active_per_player": 1,
   "original_maximum_familiar_locations": 16,
-  "original_near_full_opacity": 0.94
+  "original_near_full_opacity": 0.94,
+  "false_memories_enabled": true,
+  "false_memory_minimum_stage": 2,
+  "false_memory_minimum_real_prefix_seconds": 4,
+  "false_memory_maximum_real_prefix_seconds": 10,
+  "false_memory_minimum_accuracy": 0.72,
+  "false_memory_maximum_deviations": 2,
+  "false_memory_event_weight": 8,
+  "panic_imprints_enabled": true,
+  "panic_imprint_health_threshold": 8.0,
+  "panic_imprint_maximum_saved": 4,
+  "panic_imprint_minimum_event_interval_minutes": 90,
+  "peripheral_echoes_enabled": true,
+  "peripheral_echo_maximum_per_session": 2,
+  "peripheral_echo_minimum_interval_minutes": 35,
+  "peripheral_echo_duration_seconds": 5,
+  "audio_residue_enabled": true,
+  "audio_residue_maximum_per_session": 3,
+  "audio_residue_minimum_interval_minutes": 25,
+  "borrowed_habits_enabled": true,
+  "maximum_tracked_habits": 12,
+  "adaptive_event_director": true,
+  "prevent_repeated_events": true,
+  "recent_event_history_size": 12,
+  "strong_event_silence_minutes": 20,
+  "join_event_grace_minutes": 8
 }
 ```
 
-Invalid or missing values are replaced with safe defaults.
+Values are clamped to safe bounds. Missing 0.4 fields are merged into existing 0.3 configuration files without deleting existing supported values. A malformed file is left untouched and safe in-memory defaults are used, so an operator can repair the original file.
 
 ## Commands
 
@@ -147,6 +178,19 @@ All commands require permission level 2.
 - `/echo_protocol familiar list <player>`
 - `/echo_protocol familiar clear <player>`
 - `/echo_protocol familiar add-current <player>`
+- `/echo_protocol false-memory spawn <player>`
+- `/echo_protocol false-memory test-deviation <player>`
+- `/echo_protocol panic list <player>`
+- `/echo_protocol panic capture-current <player>`
+- `/echo_protocol panic replay <player>`
+- `/echo_protocol panic clear <player>`
+- `/echo_protocol peripheral spawn <player>`
+- `/echo_protocol audio-residue play <player>`
+- `/echo_protocol habits list <player>`
+- `/echo_protocol habits clear <player>`
+- `/echo_protocol director status <player>`
+- `/echo_protocol director history <player>`
+- `/echo_protocol director clear-history <player>`
 - `/echo_protocol skin status <player>`
 - `/echo_protocol skin clear-cache <player>`
 - `/echo_protocol visual memory <player>`
@@ -165,16 +209,20 @@ All commands require permission level 2.
 
 Recording is bounded per online player. With the default interval of 2 ticks and 10 minutes of history, each player stores at most 6,000 movement frames plus a small bounded set of sound/chat markers. Mimic Echoes use a separate bounded delayed movement queue of about 220 frames while active. Stage 3 adds up to `original_maximum_familiar_locations` lightweight familiar-location entries per player; the default is 16 entries containing only type, dimension, block position, visit count, and last-seen tick. Skin rendering uses Minecraft's client skin provider and a bounded 64-entry client-side resolver cache; the server stores only the target UUID needed for allowed viewers. Safe spawn checks use at most `safe_spawn_attempts` local attempts and never force-load chunks. The implementation avoids pathfinding, chunk force-loading, block entity ticking, and global entity scans. Echo entities are short-lived, non-colliding, server-directed events.
 
-Estimated memory use is roughly 1 to 2 MB per active player depending on JVM object layout and held item NBT size, plus a few kilobytes for Stage 3 familiar-location and progression metadata. The held item visual is copied in a single-item stack form and old data is discarded automatically.
+False Memory plans are capped at 120 authentic and 160 fabricated frames. Each player has at most 4 Panic Imprints by default (120 frames each), 24 lightweight Audio Residue identifiers, 12 habit summaries, and 12 director-history entries. These structures are cleared safely at server shutdown; session counters and active entities are cleaned on disconnect or dimension transfer.
+
+Estimated additional 0.4 overhead is about 150–350 KB per active player at defaults, depending mostly on held-item component data in Panic Imprint frames. Combined with the existing 6,000-frame movement history, total use remains roughly 1.2–2.4 MB per active player on a typical 64-bit JVM. No new system scans the full world or force-loads chunks.
 
 ## Known Limitations
 
 - Some Echo behavior is scripted rather than using advanced navigation.
 - Recordings are kept in memory and are not preserved across server restarts.
+- Panic Imprints, Audio Residue history, habit summaries, and adaptive event history are session-scoped in this alpha; progression and familiar locations remain persistent.
 - Sound design currently relies mostly on compatible vanilla sound events.
 - Some menu and portal-state detection is limited by server-side information.
 - The Original's familiar-location system is heuristic and bounded; it does not inspect container contents or infer detailed base ownership.
 - The Original uses scripted safe movement and disappearance instead of normal hostile mob AI.
+- Fabricated movement uses bounded scripted segments rather than general pathfinding; a blocked route may end early and disappear safely.
 
 ## Test Checklist
 
@@ -184,6 +232,13 @@ Estimated memory use is roughly 1 to 2 MB per active player depending on JVM obj
 - Recording buffer remains bounded.
 - Echo entity spawns.
 - Echo follows a previous player route.
+- False Memory preserves a genuine prefix before the deviation state begins.
+- False Memory plans and deviation history stay bounded.
+- Panic Imprint capture and replay contain no damage, explosion, fire, or mob recreation.
+- Peripheral events respect their per-session cap and observation grace period.
+- Audio Residue remains target-only when `shared_echoes=false`.
+- Borrowed Habits remain bounded and never interact with blocks or inventories.
+- Adaptive history prevents immediate repeats and enforces strong-event silence.
 - Memory Echo accurately replays a route and does not react.
 - Corrupted Echo begins with a valid replay, desynchronizes, looks toward the player, and despawns.
 - Mimic Echo copies current movement with delay, makes small mistakes, and despawns.
@@ -231,3 +286,8 @@ Estimated memory use is roughly 1 to 2 MB per active player depending on JVM obj
 13. Run `/echo_protocol familiar add-current <your_name>`, then `/echo_protocol stage set <your_name> 3`.
 14. Run `/echo_protocol original spawn <your_name>` and confirm The Original uses your skin, holds a visual familiar item, and leaves without modifying blocks or inventories.
 15. Run `/echo_protocol original confront <your_name>` and confirm the confrontation ends without a boss bar or normal chase.
+16. Run `/echo_protocol false-memory test-deviation <your_name>` and confirm an authentic route prefix transitions into a harmless fabricated action.
+17. At low health, walk for several seconds, run `/echo_protocol panic capture-current <your_name>`, then `/echo_protocol panic replay <your_name>`.
+18. Run `/echo_protocol peripheral spawn <your_name>` and turn toward the edge-of-view Echo; confirm it does not flicker and reappears at most once.
+19. Interact with a door, chest, crafting table, or furnace, then run `/echo_protocol audio-residue play <your_name>`.
+20. Run `/echo_protocol habits list <your_name>` and `/echo_protocol director history <your_name>`; confirm neither command prints movement frames, private messages, or profile data.

@@ -1,0 +1,10 @@
+{
+  "parent": "echoprotocol:that_never_happened",
+  "display": {
+    "icon": { "id": "minecraft:totem_of_undying" },
+    "title": { "translate": "advancements.echoprotocol.almost_lost_everything.title" },
+    "description": { "translate": "advancements.echoprotocol.almost_lost_everything.description" },
+    "hidden": true
+  },
+  "criteria": { "trigger": { "trigger": "minecraft:impossible" } }
+}

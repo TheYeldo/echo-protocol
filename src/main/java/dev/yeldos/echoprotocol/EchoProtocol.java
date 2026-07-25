@@ -34,7 +34,7 @@ public final class EchoProtocol implements ModInitializer {
         eventDirector = new EchoEventDirector(recordingManager, stageManager);
 
         EchoCommands.register(recordingManager, stageManager, eventDirector);
-        EchoEventHooks.register(recordingManager, stageManager);
+        EchoEventHooks.register(recordingManager, stageManager, eventDirector);
 
         ServerLifecycleEvents.SERVER_STARTED.register(EchoProtocol::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(EchoProtocol::onServerStopping);

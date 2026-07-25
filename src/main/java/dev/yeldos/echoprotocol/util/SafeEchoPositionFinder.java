@@ -52,6 +52,22 @@ public final class SafeEchoPositionFinder {
         return Optional.empty();
     }
 
+    public static Optional<Vec3d> findPeripheral(ServerWorld world, ServerPlayerEntity target, EchoConfig config) {
+        int attempts = Math.max(4, config.safeSpawnAttempts());
+        Vec3d look = target.getRotationVec(1.0F).normalize();
+        for (int i = 0; i < attempts; i++) {
+            double side = ThreadLocalRandom.current().nextBoolean() ? 1.0D : -1.0D;
+            double angle = side * ThreadLocalRandom.current().nextDouble(1.05D, 1.75D);
+            double distance = ThreadLocalRandom.current().nextDouble(config.minimumEchoSpawnDistance(),
+                    Math.max(config.minimumEchoSpawnDistance() + 1.0D, config.maximumEchoSpawnDistance()));
+            Vec3d candidate = dropToGround(world, target.getPos().add(rotateY(look, angle).multiply(distance)));
+            if (isValid(world, target, candidate, config, true)) {
+                return Optional.of(candidate);
+            }
+        }
+        return Optional.empty();
+    }
+
     public static boolean isValid(ServerWorld world, ServerPlayerEntity target, Vec3d pos, EchoConfig config, boolean requireFloor) {
         BlockPos blockPos = BlockPos.ofFloored(pos);
         if (!world.isChunkLoaded(blockPos)) {

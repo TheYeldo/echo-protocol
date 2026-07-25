@@ -83,7 +83,8 @@ public record EchoConfig(
         float originalDamage,
         int originalMaximumActivePerPlayer,
         int originalMaximumFamiliarLocations,
-        float originalNearFullOpacity
+        float originalNearFullOpacity,
+        V04Settings v04
 ) {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("echo_protocol.json");
@@ -94,20 +95,24 @@ public record EchoConfig(
                 true, true, 0.42F, 0.48F, 0.58F, 0.90F, true, true, 0.65F, false, true,
                 0.75F, 0.55F, 0.70F, 0.80F, true, true, 16, 8, 32,
                 true, 180, 8, 4, 2, true, 20, 60, 150, true, false, false,
-                4.0F, 1, 16, 0.94F);
+                4.0F, 1, 16, 0.94F, V04Settings.defaults());
     }
 
     public static EchoConfig load() {
         EchoConfig config = defaults();
+        boolean safeToRewrite = true;
         if (Files.exists(CONFIG_PATH)) {
             try (Reader reader = Files.newBufferedReader(CONFIG_PATH)) {
                 Raw raw = GSON.fromJson(reader, Raw.class);
                 config = fromRaw(raw).validate();
             } catch (IOException | JsonSyntaxException | NullPointerException exception) {
                 EchoProtocol.LOGGER.warn("Failed to load echo_protocol.json; using safe defaults.", exception);
+                safeToRewrite = false;
             }
         }
-        config.save();
+        if (safeToRewrite) {
+            config.save();
+        }
         return config;
     }
 
@@ -129,7 +134,7 @@ public record EchoConfig(
                 stageThreeRequiredMimicEvents, originalEnabled, originalFirstEventDelayMinutes,
                 originalMinimumEventIntervalMinutes, originalMaximumEventIntervalMinutes,
                 originalFamiliarLocationsEnabled, originalTextEvents, originalDamageEnabled, originalDamage,
-                originalMaximumActivePerPlayer, originalMaximumFamiliarLocations, originalNearFullOpacity).validate();
+                originalMaximumActivePerPlayer, originalMaximumFamiliarLocations, originalNearFullOpacity, v04).validate();
         updated.save();
         return updated;
     }
@@ -194,6 +199,7 @@ public record EchoConfig(
         int originalMaxActive = clamp(originalMaximumActivePerPlayer, 1, 3);
         int originalMaxLocations = clamp(originalMaximumFamiliarLocations, 4, 64);
         float originalOpacity = clampFloat(originalNearFullOpacity, 0.5F, 1.0F);
+        V04Settings validatedV04 = (v04 == null ? V04Settings.defaults() : v04).validate();
         return new EchoConfig(enabled, sample, history, minReplay, maxReplay, stageZero, stageTwo, minInterval,
                 maxInterval, sharedEchoes, chatEchoes, torchFlicker, soundEchoes, opacity, debugLogging,
                 memoryEchoEnabled, corruptedEchoEnabled, mimicEchoEnabled, memoryWeight, corruptedWeight, mimicWeight,
@@ -206,7 +212,7 @@ public record EchoConfig(
                 stageThreeEnabled, stageThreePlaytime, stageThreeMemory, stageThreeCorrupted, stageThreeMimic,
                 originalEnabled, originalFirstDelay, originalMinInterval, originalMaxInterval,
                 originalFamiliarLocationsEnabled, originalTextEvents, originalDamageEnabled, originalSafeDamage,
-                originalMaxActive, originalMaxLocations, originalOpacity);
+                originalMaxActive, originalMaxLocations, originalOpacity, validatedV04);
     }
 
     private Raw toRaw() {
@@ -282,6 +288,7 @@ public record EchoConfig(
         raw.original_maximum_active_per_player = originalMaximumActivePerPlayer;
         raw.original_maximum_familiar_locations = originalMaximumFamiliarLocations;
         raw.original_near_full_opacity = originalNearFullOpacity;
+        v04.writeTo(raw);
         return raw;
     }
 
@@ -361,9 +368,36 @@ public record EchoConfig(
                 raw.original_damage == null ? defaults.originalDamage : raw.original_damage,
                 raw.original_maximum_active_per_player == null ? defaults.originalMaximumActivePerPlayer : raw.original_maximum_active_per_player,
                 raw.original_maximum_familiar_locations == null ? defaults.originalMaximumFamiliarLocations : raw.original_maximum_familiar_locations,
-                raw.original_near_full_opacity == null ? defaults.originalNearFullOpacity : raw.original_near_full_opacity
+                raw.original_near_full_opacity == null ? defaults.originalNearFullOpacity : raw.original_near_full_opacity,
+                V04Settings.fromRaw(raw, defaults.v04)
         );
     }
+
+    public boolean falseMemoriesEnabled() { return v04.falseMemoriesEnabled; }
+    public int falseMemoryMinimumStage() { return v04.falseMemoryMinimumStage; }
+    public int falseMemoryMinimumRealPrefixSeconds() { return v04.falseMemoryMinimumRealPrefixSeconds; }
+    public int falseMemoryMaximumRealPrefixSeconds() { return v04.falseMemoryMaximumRealPrefixSeconds; }
+    public float falseMemoryMinimumAccuracy() { return v04.falseMemoryMinimumAccuracy; }
+    public int falseMemoryMaximumDeviations() { return v04.falseMemoryMaximumDeviations; }
+    public int falseMemoryEventWeight() { return v04.falseMemoryEventWeight; }
+    public boolean panicImprintsEnabled() { return v04.panicImprintsEnabled; }
+    public float panicImprintHealthThreshold() { return v04.panicImprintHealthThreshold; }
+    public int panicImprintMaximumSaved() { return v04.panicImprintMaximumSaved; }
+    public int panicImprintMinimumEventIntervalMinutes() { return v04.panicImprintMinimumEventIntervalMinutes; }
+    public boolean peripheralEchoesEnabled() { return v04.peripheralEchoesEnabled; }
+    public int peripheralEchoMaximumPerSession() { return v04.peripheralEchoMaximumPerSession; }
+    public int peripheralEchoMinimumIntervalMinutes() { return v04.peripheralEchoMinimumIntervalMinutes; }
+    public int peripheralEchoDurationSeconds() { return v04.peripheralEchoDurationSeconds; }
+    public boolean audioResidueEnabled() { return v04.audioResidueEnabled; }
+    public int audioResidueMaximumPerSession() { return v04.audioResidueMaximumPerSession; }
+    public int audioResidueMinimumIntervalMinutes() { return v04.audioResidueMinimumIntervalMinutes; }
+    public boolean borrowedHabitsEnabled() { return v04.borrowedHabitsEnabled; }
+    public int maximumTrackedHabits() { return v04.maximumTrackedHabits; }
+    public boolean adaptiveEventDirector() { return v04.adaptiveEventDirector; }
+    public boolean preventRepeatedEvents() { return v04.preventRepeatedEvents; }
+    public int recentEventHistorySize() { return v04.recentEventHistorySize; }
+    public int strongEventSilenceMinutes() { return v04.strongEventSilenceMinutes; }
+    public int joinEventGraceMinutes() { return v04.joinEventGraceMinutes; }
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
@@ -445,5 +479,155 @@ public record EchoConfig(
         Integer original_maximum_active_per_player;
         Integer original_maximum_familiar_locations;
         Float original_near_full_opacity;
+        Boolean false_memories_enabled;
+        Integer false_memory_minimum_stage;
+        Integer false_memory_minimum_real_prefix_seconds;
+        Integer false_memory_maximum_real_prefix_seconds;
+        Float false_memory_minimum_accuracy;
+        Integer false_memory_maximum_deviations;
+        Integer false_memory_event_weight;
+        Boolean panic_imprints_enabled;
+        Float panic_imprint_health_threshold;
+        Integer panic_imprint_maximum_saved;
+        Integer panic_imprint_minimum_event_interval_minutes;
+        Boolean peripheral_echoes_enabled;
+        Integer peripheral_echo_maximum_per_session;
+        Integer peripheral_echo_minimum_interval_minutes;
+        Integer peripheral_echo_duration_seconds;
+        Boolean audio_residue_enabled;
+        Integer audio_residue_maximum_per_session;
+        Integer audio_residue_minimum_interval_minutes;
+        Boolean borrowed_habits_enabled;
+        Integer maximum_tracked_habits;
+        Boolean adaptive_event_director;
+        Boolean prevent_repeated_events;
+        Integer recent_event_history_size;
+        Integer strong_event_silence_minutes;
+        Integer join_event_grace_minutes;
+    }
+
+    public record V04Settings(
+            boolean falseMemoriesEnabled,
+            int falseMemoryMinimumStage,
+            int falseMemoryMinimumRealPrefixSeconds,
+            int falseMemoryMaximumRealPrefixSeconds,
+            float falseMemoryMinimumAccuracy,
+            int falseMemoryMaximumDeviations,
+            int falseMemoryEventWeight,
+            boolean panicImprintsEnabled,
+            float panicImprintHealthThreshold,
+            int panicImprintMaximumSaved,
+            int panicImprintMinimumEventIntervalMinutes,
+            boolean peripheralEchoesEnabled,
+            int peripheralEchoMaximumPerSession,
+            int peripheralEchoMinimumIntervalMinutes,
+            int peripheralEchoDurationSeconds,
+            boolean audioResidueEnabled,
+            int audioResidueMaximumPerSession,
+            int audioResidueMinimumIntervalMinutes,
+            boolean borrowedHabitsEnabled,
+            int maximumTrackedHabits,
+            boolean adaptiveEventDirector,
+            boolean preventRepeatedEvents,
+            int recentEventHistorySize,
+            int strongEventSilenceMinutes,
+            int joinEventGraceMinutes
+    ) {
+        static V04Settings defaults() {
+            return new V04Settings(true, 2, 4, 10, 0.72F, 2, 8,
+                    true, 8.0F, 4, 90,
+                    true, 2, 35, 5,
+                    true, 3, 25,
+                    true, 12,
+                    true, true, 12, 20, 8);
+        }
+
+        V04Settings validate() {
+            int minPrefix = clamp(falseMemoryMinimumRealPrefixSeconds, 2, 60);
+            int maxPrefix = clamp(Math.max(falseMemoryMaximumRealPrefixSeconds, minPrefix), minPrefix, 120);
+            return new V04Settings(
+                    falseMemoriesEnabled,
+                    clamp(falseMemoryMinimumStage, 0, 3),
+                    minPrefix,
+                    maxPrefix,
+                    clampFloat(falseMemoryMinimumAccuracy, 0.5F, 1.0F),
+                    clamp(falseMemoryMaximumDeviations, 1, 4),
+                    clamp(falseMemoryEventWeight, 0, 1000),
+                    panicImprintsEnabled,
+                    clampFloat(panicImprintHealthThreshold, 1.0F, 20.0F),
+                    clamp(panicImprintMaximumSaved, 1, 12),
+                    clamp(panicImprintMinimumEventIntervalMinutes, 1, 1440),
+                    peripheralEchoesEnabled,
+                    clamp(peripheralEchoMaximumPerSession, 0, 8),
+                    clamp(peripheralEchoMinimumIntervalMinutes, 1, 1440),
+                    clamp(peripheralEchoDurationSeconds, 2, 30),
+                    audioResidueEnabled,
+                    clamp(audioResidueMaximumPerSession, 0, 12),
+                    clamp(audioResidueMinimumIntervalMinutes, 1, 1440),
+                    borrowedHabitsEnabled,
+                    clamp(maximumTrackedHabits, 1, 32),
+                    adaptiveEventDirector,
+                    preventRepeatedEvents,
+                    clamp(recentEventHistorySize, 2, 32),
+                    clamp(strongEventSilenceMinutes, 1, 1440),
+                    clamp(joinEventGraceMinutes, 1, 120));
+        }
+
+        static V04Settings fromRaw(Raw raw, V04Settings defaults) {
+            return new V04Settings(
+                    raw.false_memories_enabled == null ? defaults.falseMemoriesEnabled : raw.false_memories_enabled,
+                    raw.false_memory_minimum_stage == null ? defaults.falseMemoryMinimumStage : raw.false_memory_minimum_stage,
+                    raw.false_memory_minimum_real_prefix_seconds == null ? defaults.falseMemoryMinimumRealPrefixSeconds : raw.false_memory_minimum_real_prefix_seconds,
+                    raw.false_memory_maximum_real_prefix_seconds == null ? defaults.falseMemoryMaximumRealPrefixSeconds : raw.false_memory_maximum_real_prefix_seconds,
+                    raw.false_memory_minimum_accuracy == null ? defaults.falseMemoryMinimumAccuracy : raw.false_memory_minimum_accuracy,
+                    raw.false_memory_maximum_deviations == null ? defaults.falseMemoryMaximumDeviations : raw.false_memory_maximum_deviations,
+                    raw.false_memory_event_weight == null ? defaults.falseMemoryEventWeight : raw.false_memory_event_weight,
+                    raw.panic_imprints_enabled == null ? defaults.panicImprintsEnabled : raw.panic_imprints_enabled,
+                    raw.panic_imprint_health_threshold == null ? defaults.panicImprintHealthThreshold : raw.panic_imprint_health_threshold,
+                    raw.panic_imprint_maximum_saved == null ? defaults.panicImprintMaximumSaved : raw.panic_imprint_maximum_saved,
+                    raw.panic_imprint_minimum_event_interval_minutes == null ? defaults.panicImprintMinimumEventIntervalMinutes : raw.panic_imprint_minimum_event_interval_minutes,
+                    raw.peripheral_echoes_enabled == null ? defaults.peripheralEchoesEnabled : raw.peripheral_echoes_enabled,
+                    raw.peripheral_echo_maximum_per_session == null ? defaults.peripheralEchoMaximumPerSession : raw.peripheral_echo_maximum_per_session,
+                    raw.peripheral_echo_minimum_interval_minutes == null ? defaults.peripheralEchoMinimumIntervalMinutes : raw.peripheral_echo_minimum_interval_minutes,
+                    raw.peripheral_echo_duration_seconds == null ? defaults.peripheralEchoDurationSeconds : raw.peripheral_echo_duration_seconds,
+                    raw.audio_residue_enabled == null ? defaults.audioResidueEnabled : raw.audio_residue_enabled,
+                    raw.audio_residue_maximum_per_session == null ? defaults.audioResidueMaximumPerSession : raw.audio_residue_maximum_per_session,
+                    raw.audio_residue_minimum_interval_minutes == null ? defaults.audioResidueMinimumIntervalMinutes : raw.audio_residue_minimum_interval_minutes,
+                    raw.borrowed_habits_enabled == null ? defaults.borrowedHabitsEnabled : raw.borrowed_habits_enabled,
+                    raw.maximum_tracked_habits == null ? defaults.maximumTrackedHabits : raw.maximum_tracked_habits,
+                    raw.adaptive_event_director == null ? defaults.adaptiveEventDirector : raw.adaptive_event_director,
+                    raw.prevent_repeated_events == null ? defaults.preventRepeatedEvents : raw.prevent_repeated_events,
+                    raw.recent_event_history_size == null ? defaults.recentEventHistorySize : raw.recent_event_history_size,
+                    raw.strong_event_silence_minutes == null ? defaults.strongEventSilenceMinutes : raw.strong_event_silence_minutes,
+                    raw.join_event_grace_minutes == null ? defaults.joinEventGraceMinutes : raw.join_event_grace_minutes);
+        }
+
+        void writeTo(Raw raw) {
+            raw.false_memories_enabled = falseMemoriesEnabled;
+            raw.false_memory_minimum_stage = falseMemoryMinimumStage;
+            raw.false_memory_minimum_real_prefix_seconds = falseMemoryMinimumRealPrefixSeconds;
+            raw.false_memory_maximum_real_prefix_seconds = falseMemoryMaximumRealPrefixSeconds;
+            raw.false_memory_minimum_accuracy = falseMemoryMinimumAccuracy;
+            raw.false_memory_maximum_deviations = falseMemoryMaximumDeviations;
+            raw.false_memory_event_weight = falseMemoryEventWeight;
+            raw.panic_imprints_enabled = panicImprintsEnabled;
+            raw.panic_imprint_health_threshold = panicImprintHealthThreshold;
+            raw.panic_imprint_maximum_saved = panicImprintMaximumSaved;
+            raw.panic_imprint_minimum_event_interval_minutes = panicImprintMinimumEventIntervalMinutes;
+            raw.peripheral_echoes_enabled = peripheralEchoesEnabled;
+            raw.peripheral_echo_maximum_per_session = peripheralEchoMaximumPerSession;
+            raw.peripheral_echo_minimum_interval_minutes = peripheralEchoMinimumIntervalMinutes;
+            raw.peripheral_echo_duration_seconds = peripheralEchoDurationSeconds;
+            raw.audio_residue_enabled = audioResidueEnabled;
+            raw.audio_residue_maximum_per_session = audioResidueMaximumPerSession;
+            raw.audio_residue_minimum_interval_minutes = audioResidueMinimumIntervalMinutes;
+            raw.borrowed_habits_enabled = borrowedHabitsEnabled;
+            raw.maximum_tracked_habits = maximumTrackedHabits;
+            raw.adaptive_event_director = adaptiveEventDirector;
+            raw.prevent_repeated_events = preventRepeatedEvents;
+            raw.recent_event_history_size = recentEventHistorySize;
+            raw.strong_event_silence_minutes = strongEventSilenceMinutes;
+            raw.join_event_grace_minutes = joinEventGraceMinutes;
+        }
     }
 }

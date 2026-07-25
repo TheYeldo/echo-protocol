@@ -23,7 +23,7 @@ public final class EchoSoundPlayer {
             return;
         }
         switch (type) {
-            case MEMORY -> play(target, "memory_ambient", SoundEvents.AMBIENT_CAVE.value(), config, pos, config.memoryEchoVolume(), 0.65F, 80);
+            case MEMORY, FALSE_MEMORY -> play(target, "memory_ambient", SoundEvents.AMBIENT_CAVE.value(), config, pos, config.memoryEchoVolume(), 0.65F, 80);
             case CORRUPTED -> {
                 if (config.staticEffectsEnabled()) {
                     play(target, "corrupted_static", SoundEvents.BLOCK_SCULK_SENSOR_CLICKING, config, pos, config.corruptedEchoVolume(), 0.55F, 100);
@@ -58,7 +58,7 @@ public final class EchoSoundPlayer {
 
     public static void playDisappear(ServerPlayerEntity target, EchoType type, EchoConfig config, Vec3d pos) {
         float volume = switch (type) {
-            case MEMORY -> config.memoryEchoVolume();
+            case MEMORY, FALSE_MEMORY -> config.memoryEchoVolume();
             case CORRUPTED -> config.corruptedEchoVolume();
             case MIMIC -> config.mimicEchoVolume();
             case ORIGINAL -> 0.55F;

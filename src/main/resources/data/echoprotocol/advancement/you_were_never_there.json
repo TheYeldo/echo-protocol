@@ -1,0 +1,10 @@
+{
+  "parent": "echoprotocol:that_never_happened",
+  "display": {
+    "icon": { "id": "minecraft:compass" },
+    "title": { "translate": "advancements.echoprotocol.you_were_never_there.title" },
+    "description": { "translate": "advancements.echoprotocol.you_were_never_there.description" },
+    "hidden": true
+  },
+  "criteria": { "trigger": { "trigger": "minecraft:impossible" } }
+}
