@@ -77,6 +77,9 @@ public final class FalseMemoryBehavior implements EchoBehaviorController {
         }
         deviationWitnessed = true;
         context.markObserved();
+        if (!context.awardsProgress()) {
+            return;
+        }
         context.stageManager().grant(target, "that_never_happened");
         boolean conflict = context.history().recordAndCheckConflict(target.getUuid(), context.plan(),
                 context.eventTick(), context.config().recentEventHistorySize());

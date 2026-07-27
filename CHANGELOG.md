@@ -1,3 +1,40 @@
+# Echo Protocol v0.4.1-alpha — Stability Update
+
+## Fixed
+
+- Replay routes now translate to their validated safe spawn as a whole instead of jumping back to the old absolute coordinates on the first tick.
+- A rejected world entity spawn no longer sets the active-event lock, event history, counters, or command success state.
+- Dimension changes now discard incompatible movement history before any new replay can select it.
+- Private Audio Residue and recorded-memory sounds now originate from the validated world position while remaining target-only.
+- Panic Imprints retain the newest bounded capture rather than truncating away the moments nearest the trigger.
+- False Memory prefixes honor the configured maximum, and generated plans fall back to an observable head deviation if selected actions would be no-ops.
+- Hostile Mimics are excluded in Peaceful and terminate within their configured bounded state even when chase movement is disabled.
+- Forced administrative events no longer grant normal gameplay progression; observation advancements now require an actual observed behavior transition.
+- The previously unreachable `it_saw_me` and `out_of_sync` conditions now have real Corrupted Echo trigger paths.
+- Original confrontation and familiar-location advancements now require their corresponding observed event instead of any spawn or disappearance.
+- `/echo_protocol clear` now ends active entities and clears all per-player session managers, and `skin clear-cache` now sends a real client cache-clear packet.
+- Stage cooldown persistence now stores remaining delays, avoiding stale process-local tick deadlines after a server restart.
+- Muted sound attempts no longer consume their cooldown.
+
+## Improved
+
+- Added JUnit 5 regression coverage for bounded recordings, replay translation, Panic eviction, False Memory deviation visibility, view-angle geometry, event history, stuck detection, config migration, advancement resources, and persisted delays.
+- Original event selection now prefers a matching valid bed, storage, workstation, doorway, portal, or frequently used item and ignores removed block anchors.
+- Event Director selection excludes Peripheral Echo and Audio Residue candidates while their real cooldown/session prerequisites are unavailable.
+- Config migration preserves unknown top-level fields, clamps non-finite values safely, and never overwrites malformed JSON.
+- Removed empty custom-sound declarations; the mod intentionally plays registered vanilla sound events.
+
+## Verification
+
+- Java 21 unit tests and clean Loom builds cover the pure logic and resource contracts listed in `docs/VERIFICATION.md`.
+- Runtime results for this branch are recorded in `docs/VERIFICATION.md`; unperformed client or multiplayer checks are explicitly marked rather than inferred from compilation.
+
+## Known Limitations
+
+- Recordings and the 0.4 bounded event histories remain session-scoped.
+- Original and False Memory navigation remains intentionally local, loaded-chunk-only, and bounded; obstructed plans may end safely.
+- Human visual verification is still required for subjective opacity, animation quality, classic/slim skins, and peripheral comfort.
+
 # Echo Protocol v0.4.0-alpha — False Memories
 
 ## Added

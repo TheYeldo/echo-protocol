@@ -54,8 +54,10 @@ public final class PeripheralEchoBehavior implements EchoBehaviorController {
         boolean directlyObserved = EchoVisibility.isLookingAt(target, echo, 0.90D);
         directObservationTicks = directlyObserved ? directObservationTicks + 1 : 0;
         if (directObservationTicks >= OBSERVATION_GRACE_TICKS) {
-            context.stageManager().grant(target, "out_of_the_corner_of_my_eye");
             context.markObserved();
+            if (context.awardsProgress()) {
+                context.stageManager().grant(target, "out_of_the_corner_of_my_eye");
+            }
             if (!reappeared && age < durationTicks / 2) {
                 Vec3d next = SafeEchoPositionFinder.findPeripheral(world, target, context.config()).orElse(null);
                 if (next != null) {

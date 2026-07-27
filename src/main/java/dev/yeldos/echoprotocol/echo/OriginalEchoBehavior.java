@@ -36,6 +36,8 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     private final List<Vec3d> knownLocations;
     private final ItemStack heldItem;
     private final OriginalMovementMode movementTest;
+    private final boolean familiarAnchor;
+    private final boolean bedAnchor;
     private final OriginalObservationTracker observation = new OriginalObservationTracker();
     private final OriginalMovementController movement;
     private EchoState state = EchoState.OBSERVING;
@@ -54,16 +56,20 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     private boolean disappearSoundPlayed;
     private boolean unobservedAdvanceUsed;
     private boolean initialized;
+    private boolean observedProgressGranted;
     private Vec3d unobservedAdvanceTarget;
 
     public OriginalEchoBehavior(EchoEventContext context, OriginalEventKind eventKind, Vec3d anchor,
-                                List<Vec3d> knownLocations, ItemStack heldItem, OriginalMovementMode movementTest) {
+                                List<Vec3d> knownLocations, ItemStack heldItem, OriginalMovementMode movementTest,
+                                boolean familiarAnchor, boolean bedAnchor) {
         this.context = context;
         this.eventKind = eventKind;
         this.anchor = anchor;
         this.knownLocations = List.copyOf(knownLocations.subList(0, Math.min(5, knownLocations.size())));
         this.heldItem = heldItem.copyWithCount(Math.min(1, heldItem.getCount()));
         this.movementTest = movementTest;
+        this.familiarAnchor = familiarAnchor;
+        this.bedAnchor = bedAnchor;
         this.movement = new OriginalMovementController(context.config());
     }
 
@@ -108,6 +114,18 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
         age++;
         segmentAge++;
         observation.tick(echo, target, context.config(), age);
+        if (!observedProgressGranted && observation.directlyObservedTicks() >= context.config().originalObservationGraceTicks()) {
+            observedProgressGranted = true;
+            context.markObserved();
+            if (context.awardsProgress()) {
+                if (familiarAnchor) {
+                    context.stageManager().grant(target, "my_place");
+                }
+                if (familiarAnchor && (bedAnchor || eventKind == OriginalEventKind.ALREADY_HOME)) {
+                    context.stageManager().grant(target, "already_home");
+                }
+            }
+        }
         echo.setReplayOpacity(Math.min(context.config().originalNearFullOpacity(),
                 age / 24.0F * context.config().originalNearFullOpacity()));
         maybeSendText(target);
@@ -302,7 +320,9 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
         float progress = MathHelper.clamp(segmentAge / (float) Math.max(1, segmentDuration), 0.0F, 1.0F);
         echo.setReplayOpacity((1.0F - progress) * context.config().originalNearFullOpacity());
         if (segmentAge >= segmentDuration) {
-            context.stageManager().grant(target, "which_one_is_real");
+            if (eventKind == OriginalEventKind.CONFRONTATION && context.awardsProgress()) {
+                context.stageManager().grant(target, "which_one_is_real");
+            }
             echo.finishAndDiscard();
             return false;
         }
@@ -398,7 +418,9 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
         textSent = true;
         int index = ThreadLocalRandom.current().nextInt(7);
         target.sendMessage(Text.translatable("text.echoprotocol.original.message." + index), false);
-        context.stageManager().grant(target, "stop_following_me");
+        if (context.awardsProgress()) {
+            context.stageManager().grant(target, "stop_following_me");
+        }
     }
 
     private void maybeConfront(EchoEntity echo, ServerPlayerEntity target) {

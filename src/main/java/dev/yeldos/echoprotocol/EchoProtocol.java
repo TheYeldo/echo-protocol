@@ -5,11 +5,13 @@ import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.echo.EchoEventDirector;
 import dev.yeldos.echoprotocol.entity.EchoEntities;
 import dev.yeldos.echoprotocol.event.EchoEventHooks;
+import dev.yeldos.echoprotocol.network.ClearSkinCachePayload;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
@@ -28,6 +30,7 @@ public final class EchoProtocol implements ModInitializer {
     public void onInitialize() {
         config = EchoConfig.load();
         EchoEntities.register();
+        PayloadTypeRegistry.playS2C().register(ClearSkinCachePayload.ID, ClearSkinCachePayload.CODEC);
 
         recordingManager = new RecordingManager();
         stageManager = new StageManager();
@@ -70,5 +73,9 @@ public final class EchoProtocol implements ModInitializer {
 
     public static void reloadConfig() {
         config = EchoConfig.load();
+    }
+
+    public static void applyConfig(EchoConfig updated) {
+        config = java.util.Objects.requireNonNull(updated, "updated");
     }
 }

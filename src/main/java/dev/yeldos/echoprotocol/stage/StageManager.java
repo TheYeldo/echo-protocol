@@ -23,7 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class StageManager {
-    private static final int DATA_VERSION = 2;
+    private static final int DATA_VERSION = 3;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Map<UUID, PlayerEchoState> states = new HashMap<>();
     private long tick;
@@ -134,6 +134,8 @@ public final class StageManager {
     }
 
     public void load(MinecraftServer server) {
+        states.clear();
+        tick = 0L;
         Path path = dataPath(server);
         if (!Files.exists(path)) {
             return;
@@ -143,15 +145,16 @@ public final class StageManager {
             if (data == null || data.players == null) {
                 return;
             }
-            states.clear();
             for (Map.Entry<String, SavedPlayer> entry : data.players.entrySet()) {
                 UUID uuid = UUID.fromString(entry.getKey());
                 SavedPlayer saved = entry.getValue();
                 PlayerEchoState state = new PlayerEchoState();
                 state.setStage(EchoStage.fromId(saved.stage));
                 state.setPlayTicks(saved.playTicks);
-                state.setNextEventTick(saved.nextEventTick);
-                state.setNextOriginalEventTick(saved.nextOriginalEventTick);
+                if (data.dataVersion >= DATA_VERSION) {
+                    state.setNextEventTick(restoreDeadline(tick, saved.nextEventDelay));
+                    state.setNextOriginalEventTick(restoreDeadline(tick, saved.nextOriginalEventDelay));
+                }
                 state.setStageOneEvents(saved.stageOneEvents);
                 state.setTotalEvents(saved.totalEvents);
                 state.setMemoryEvents(saved.memoryEvents);
@@ -184,8 +187,8 @@ public final class StageManager {
             SavedPlayer saved = new SavedPlayer();
             saved.stage = state.stage().id();
             saved.playTicks = state.playTicks();
-            saved.nextEventTick = state.nextEventTick();
-            saved.nextOriginalEventTick = state.nextOriginalEventTick();
+            saved.nextEventDelay = remainingDelay(tick, state.nextEventTick());
+            saved.nextOriginalEventDelay = remainingDelay(tick, state.nextOriginalEventTick());
             saved.stageOneEvents = state.stageOneEvents();
             saved.totalEvents = state.totalEvents();
             saved.memoryEvents = state.memoryEvents();
@@ -208,6 +211,14 @@ public final class StageManager {
 
     private static Path dataPath(MinecraftServer server) {
         return server.getSavePath(WorldSavePath.ROOT).resolve("data").resolve("echo_protocol_state.json");
+    }
+
+    static long remainingDelay(long currentTick, long deadline) {
+        return deadline <= 0L ? 0L : Math.max(1L, deadline - currentTick);
+    }
+
+    static long restoreDeadline(long currentTick, long remainingDelay) {
+        return remainingDelay <= 0L ? 0L : currentTick + remainingDelay;
     }
 
     private boolean canUnlockStageThree(PlayerEchoState state, EchoConfig config) {
@@ -241,8 +252,8 @@ public final class StageManager {
     private static final class SavedPlayer {
         int stage;
         long playTicks;
-        long nextEventTick;
-        long nextOriginalEventTick;
+        long nextEventDelay;
+        long nextOriginalEventDelay;
         int stageOneEvents;
         int totalEvents;
         int memoryEvents;

@@ -11,10 +11,16 @@ public record EchoEventContext(
         EchoConfig config,
         StageManager stageManager,
         boolean forcedHostile,
+        boolean awardsProgress,
         Runnable observedCallback
 ) {
     public EchoEventContext(UUID targetUuid, EchoConfig config, StageManager stageManager, boolean forcedHostile) {
-        this(targetUuid, config, stageManager, forcedHostile, () -> { });
+        this(targetUuid, config, stageManager, forcedHostile, true, () -> { });
+    }
+
+    public EchoEventContext(UUID targetUuid, EchoConfig config, StageManager stageManager, boolean forcedHostile,
+                            boolean awardsProgress) {
+        this(targetUuid, config, stageManager, forcedHostile, awardsProgress, () -> { });
     }
 
     public void markObserved() {

@@ -14,9 +14,13 @@ public record FalseMemoryPlan(
         boolean panicImprint,
         boolean entersUnauthenticLocation
 ) {
+    public static final int MAXIMUM_AUTHENTIC_FRAMES = 120 * 20;
+    public static final int MAXIMUM_FABRICATED_FRAMES = 160;
+
     public FalseMemoryPlan {
-        realPrefix = List.copyOf(realPrefix.subList(0, Math.min(realPrefix.size(), 120)));
-        fabricatedFrames = List.copyOf(fabricatedFrames.subList(0, Math.min(fabricatedFrames.size(), 160)));
+        realPrefix = List.copyOf(realPrefix.subList(0, Math.min(realPrefix.size(), MAXIMUM_AUTHENTIC_FRAMES)));
+        fabricatedFrames = List.copyOf(fabricatedFrames.subList(0,
+                Math.min(fabricatedFrames.size(), MAXIMUM_FABRICATED_FRAMES)));
         deviations = List.copyOf(deviations.subList(0, Math.min(deviations.size(), 4)));
         branchPoint = Math.max(0, Math.min(branchPoint, Math.max(0, realPrefix.size() - 1)));
     }
@@ -28,5 +32,22 @@ public record FalseMemoryPlan(
 
     public boolean vanishWhenObserved() {
         return deviations.contains(FalseMemoryDeviation.VANISH_WHEN_OBSERVED);
+    }
+
+    public static boolean hasObservableDeviation(RecordedFrame branch, List<RecordedFrame> fabricated) {
+        for (RecordedFrame frame : fabricated) {
+            if (frame.pos().squaredDistanceTo(branch.pos()) > 0.01D
+                    || Math.abs(net.minecraft.util.math.MathHelper.wrapDegrees(frame.bodyYaw() - branch.bodyYaw())) > 2.0F
+                    || Math.abs(net.minecraft.util.math.MathHelper.wrapDegrees(frame.headYaw() - branch.headYaw())) > 2.0F
+                    || Math.abs(frame.pitch() - branch.pitch()) > 2.0F
+                    || frame.sneaking() != branch.sneaking()
+                    || frame.swimming() != branch.swimming()
+                    || frame.crawling() != branch.crawling()
+                    || frame.mainHandSwing() != branch.mainHandSwing()
+                    || frame.offHandSwing() != branch.offHandSwing()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

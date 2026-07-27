@@ -2,7 +2,7 @@
 
 Echo Protocol is a standalone Fabric mod for Minecraft Java Edition 1.21.1. The world records short, bounded slices of a player's recent movement and later replays distorted memories as translucent Echoes.
 
-This is an alpha release. Features are playable, but behavior, configuration defaults, and save data may change before a stable release. The `0.4.0-alpha` development branch adds False Memories and must receive manual gameplay testing before merging or tagging.
+This is an alpha release. Features are playable, but behavior, configuration defaults, and save data may change before a stable release. Version `0.4.1-alpha` is a stability update for the existing 0.4 systems; it does not add a new progression stage or Echo type.
 
 ## Requirements
 
@@ -26,14 +26,14 @@ Windows:
 gradlew.bat clean build
 ```
 
-No global Gradle installation is required. The generated mod JAR is written to `build/libs/echo-protocol-0.4.0-alpha.jar`.
+No global Gradle installation is required. The generated mod JAR is written to `build/libs/echo-protocol-0.4.1-alpha.jar`.
 
 ## Installation
 
 1. Install Minecraft Java Edition 1.21.1.
 2. Install Fabric Loader 0.16.14 or a compatible 1.21.1 loader.
 3. Install Fabric API 0.116.13+1.21.1 in the `mods` folder.
-4. Place `echo-protocol-0.4.0-alpha.jar` in the same `mods` folder.
+4. Place `echo-protocol-0.4.1-alpha.jar` in the same `mods` folder.
 5. Launch the client or dedicated server with Java 21.
 
 ## Echo Types
@@ -174,11 +174,13 @@ The config file is created at `config/echo_protocol.json` on first server start.
 }
 ```
 
-Values are clamped to safe bounds. Missing 0.4 fields are merged into existing 0.3 configuration files without deleting existing supported values. A malformed file is left untouched and safe in-memory defaults are used, so an operator can repair the original file.
+Values are clamped to safe bounds. Missing fields are merged into 0.2, 0.3, and 0.4 configuration files without deleting valid values or unknown top-level extension fields. A malformed file is left untouched and safe in-memory defaults are used, so an operator can repair the original file.
 
 ## Commands
 
 All commands require permission level 2.
+
+Commands that start gameplay behavior return success only after an entity was accepted by the world or a sound packet was sent. A rejected request returns failure. `clear` also ends active events and removes session histories; `skin clear-cache` sends a real request to compatible connected clients.
 
 - `/echo_protocol stage get <player>`
 - `/echo_protocol stage set <player> <0-3>`
@@ -230,7 +232,7 @@ All commands require permission level 2.
 
 Recording is bounded per online player. With the default interval of 2 ticks and 10 minutes of history, each player stores at most 6,000 movement frames plus a small bounded set of sound/chat markers. Mimic Echoes use a separate bounded delayed movement queue of about 220 frames while active. Stage 3 adds up to `original_maximum_familiar_locations` lightweight familiar-location entries per player; the default is 16 entries containing only type, dimension, block position, visit count, and last-seen tick. An active Original caches at most 12 action segments and 5 local waypoints. Route calculation examines at most 320 already-loaded local positions and runs only when a segment starts or recovery is needed, never every tick. Skin rendering uses Minecraft's client skin provider and a bounded 64-entry client-side resolver cache; the server stores only the target UUID needed for allowed viewers. Safe spawn checks use at most `safe_spawn_attempts` local attempts and never force-load chunks. The implementation avoids full mob navigation, chunk force-loading, block entity ticking, and global entity scans. Echo entities are short-lived, non-colliding, server-directed events.
 
-False Memory plans are capped at 120 authentic and 160 fabricated frames. Each player has at most 4 Panic Imprints by default (120 frames each), 24 lightweight Audio Residue identifiers, 12 habit summaries, and 12 director-history entries. These structures are cleared safely at server shutdown; session counters and active entities are cleaned on disconnect or dimension transfer.
+False Memory plans are capped at 2,400 authentic and 160 fabricated frames; normal config bounds are lower at default sampling. Each player has at most 4 Panic Imprints by default (160 recent frames each), 24 lightweight Audio Residue identifiers, 12 habit summaries, and 12 director-history entries. These structures are cleared safely at server shutdown; session counters and active entities are cleaned on disconnect or dimension transfer.
 
 Estimated additional 0.4 overhead is about 150–350 KB per active player at defaults, depending mostly on held-item component data in Panic Imprint frames. Combined with the existing 6,000-frame movement history, total use remains roughly 1.2–2.4 MB per active player on a typical 64-bit JVM. No new system scans the full world or force-loads chunks.
 
@@ -246,6 +248,7 @@ The reworked Original controller retains roughly 3–8 KB per active event for i
 - The Original's familiar-location system is heuristic and bounded; it does not inspect container contents or infer detailed base ownership.
 - The Original uses bounded local waypoint planning rather than advanced navigation. Complex multi-floor routes, closed doors, ladders, and long paths may deliberately fall back or disappear.
 - Fabricated movement uses bounded scripted segments rather than general pathfinding; a blocked route may end early and disappear safely.
+- Headless automated and dedicated-server checks cannot establish subjective visual quality, classic/slim skin appearance, or camera-edge comfort; use the manual smoke test for those checks.
 
 ## Test Checklist
 

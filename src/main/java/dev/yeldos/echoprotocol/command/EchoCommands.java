@@ -8,12 +8,14 @@ import dev.yeldos.echoprotocol.echo.EchoEventDirector;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import dev.yeldos.echoprotocol.echo.OriginalEventKind;
 import dev.yeldos.echoprotocol.original.OriginalMovementMode;
+import dev.yeldos.echoprotocol.network.ClearSkinCachePayload;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.stage.EchoStage;
 import dev.yeldos.echoprotocol.stage.FamiliarLocation;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -147,6 +149,9 @@ public final class EchoCommands {
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
                                                 .executes(context -> {
                                                     ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    if (!EchoProtocol.config().originalFamiliarLocationsEnabled()) {
+                                                        return featureDisabled(context.getSource(), "familiar locations");
+                                                    }
                                                     int count = stageManager.addCurrentFamiliarLocation(player, EchoProtocol.config());
                                                     context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.familiar_add_current",
                                                             player.getName().getString(), count), true);
@@ -186,17 +191,13 @@ public final class EchoCommands {
                         .then(CommandManager.literal("peripheral")
                                 .then(CommandManager.literal("spawn")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
-                                                .executes(context -> simpleSpawn(context.getSource(),
-                                                        EntityArgumentType.getPlayer(context, "player"),
-                                                        director.spawnPeripheral(EntityArgumentType.getPlayer(context, "player"), EchoProtocol.config(), true),
-                                                        "peripheral")))))
+                                                .executes(context -> peripheral(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director)))))
                         .then(CommandManager.literal("audio-residue")
                                 .then(CommandManager.literal("play")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
-                                                .executes(context -> simpleSpawn(context.getSource(),
-                                                        EntityArgumentType.getPlayer(context, "player"),
-                                                        director.playAudioResidue(EntityArgumentType.getPlayer(context, "player"), EchoProtocol.config(), true),
-                                                        "audio-residue")))))
+                                                .executes(context -> audioResidue(context.getSource(),
+                                                        EntityArgumentType.getPlayer(context, "player"), director)))))
                         .then(CommandManager.literal("habits")
                                 .then(CommandManager.literal("list")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
@@ -247,9 +248,22 @@ public final class EchoCommands {
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
                                                 .executes(context -> {
                                                     ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                                    int recipients = 0;
+                                                    for (ServerPlayerEntity recipient : context.getSource().getServer().getPlayerManager().getPlayerList()) {
+                                                        if (ServerPlayNetworking.canSend(recipient, ClearSkinCachePayload.ID)) {
+                                                            ServerPlayNetworking.send(recipient, new ClearSkinCachePayload(player.getUuid()));
+                                                            recipients++;
+                                                        }
+                                                    }
+                                                    if (recipients == 0) {
+                                                        context.getSource().sendError(Text.translatable("text.echoprotocol.command.skin_clear_cache_unavailable",
+                                                                player.getName().getString()));
+                                                        return 0;
+                                                    }
+                                                    int sent = recipients;
                                                     context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.skin_clear_cache",
-                                                            player.getName().getString()), true);
-                                                    return 1;
+                                                            player.getName().getString(), sent), true);
+                                                    return sent;
                                                 }))))
                         .then(CommandManager.literal("visual")
                                 .then(CommandManager.literal("memory")
@@ -292,7 +306,7 @@ public final class EchoCommands {
                                 .then(CommandManager.argument("player", EntityArgumentType.player())
                                         .executes(context -> {
                                             ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
-                                            recordingManager.clear(player.getUuid());
+                                            director.clearPlayer(player);
                                             stageManager.clear(player.getUuid());
                                             context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.cleared",
                                                     player.getName().getString()), true);
@@ -321,6 +335,9 @@ public final class EchoCommands {
     }
 
     private static int forceReplay(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player, EchoEventDirector director) {
+        if (!EchoProtocol.config().memoryEchoEnabled()) {
+            return featureDisabled(source, "memory Echo");
+        }
         if (director.spawnReplay(player, true, EchoProtocol.config())) {
             source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.spawned", player.getName().getString()), true);
             return 1;
@@ -331,6 +348,9 @@ public final class EchoCommands {
 
     private static int forceTypedReplay(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
                                         EchoEventDirector director, EchoType type, boolean hostile) {
+        if (!typeEnabled(type, EchoProtocol.config())) {
+            return featureDisabled(source, type.name().toLowerCase(Locale.ROOT) + " Echo");
+        }
         if (director.spawnEcho(player, type, true, hostile, EchoProtocol.config())) {
             source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.spawned_type",
                     player.getName().getString(), type.name().toLowerCase(java.util.Locale.ROOT)), true);
@@ -418,14 +438,21 @@ public final class EchoCommands {
 
     private static int testSound(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
                                  EchoEventDirector director, EchoType type) {
-        director.playDebugSound(player, type);
-        source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.sound_test",
-                player.getName().getString(), type.name().toLowerCase(java.util.Locale.ROOT)), false);
-        return 1;
+        if (director.playDebugSound(player, type)) {
+            source.sendFeedback(() -> Text.translatable("text.echoprotocol.command.sound_test",
+                    player.getName().getString(), type.name().toLowerCase(java.util.Locale.ROOT)), false);
+            return 1;
+        }
+        source.sendError(Text.translatable("text.echoprotocol.command.sound_test_failed",
+                player.getName().getString(), type.name().toLowerCase(java.util.Locale.ROOT)));
+        return 0;
     }
 
     private static int falseMemory(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
                                    EchoEventDirector director, boolean forceDeviation) {
+        if (!EchoProtocol.config().falseMemoriesEnabled()) {
+            return featureDisabled(source, "false memories");
+        }
         return simpleSpawn(source, player,
                 director.spawnFalseMemory(player, true, forceDeviation, EchoProtocol.config()),
                 forceDeviation ? "false-memory deviation" : "false-memory");
@@ -433,12 +460,42 @@ public final class EchoCommands {
 
     private static int panicCapture(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
                                     EchoEventDirector director) {
+        if (!EchoProtocol.config().panicImprintsEnabled()) {
+            return featureDisabled(source, "panic imprints");
+        }
         return simpleSpawn(source, player, director.capturePanic(player, EchoProtocol.config()), "panic capture");
     }
 
     private static int panicReplay(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
                                    EchoEventDirector director) {
+        if (!EchoProtocol.config().panicImprintsEnabled()) {
+            return featureDisabled(source, "panic imprints");
+        }
+        if (director.panicImprints(player.getUuid()).isEmpty()) {
+            source.sendError(Text.translatable("text.echoprotocol.command.no_panic", player.getName().getString()));
+            return 0;
+        }
         return simpleSpawn(source, player, director.replayPanic(player, EchoProtocol.config(), true), "panic replay");
+    }
+
+    private static int peripheral(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                  EchoEventDirector director) {
+        if (!EchoProtocol.config().peripheralEchoesEnabled()) {
+            return featureDisabled(source, "peripheral echoes");
+        }
+        return simpleSpawn(source, player, director.spawnPeripheral(player, EchoProtocol.config(), true), "peripheral");
+    }
+
+    private static int audioResidue(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
+                                    EchoEventDirector director) {
+        if (!EchoProtocol.config().audioResidueEnabled()) {
+            return featureDisabled(source, "audio residue");
+        }
+        if (director.audioResidues(player.getUuid()).isEmpty()) {
+            source.sendError(Text.translatable("text.echoprotocol.command.no_audio_residue", player.getName().getString()));
+            return 0;
+        }
+        return simpleSpawn(source, player, director.playAudioResidue(player, EchoProtocol.config(), true), "audio-residue");
     }
 
     private static int listPanic(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player,
@@ -488,9 +545,24 @@ public final class EchoCommands {
         return 0;
     }
 
+    private static int featureDisabled(net.minecraft.server.command.ServerCommandSource source, String feature) {
+        source.sendError(Text.translatable("text.echoprotocol.command.feature_disabled", feature));
+        return 0;
+    }
+
+    private static boolean typeEnabled(EchoType type, EchoConfig config) {
+        return switch (type) {
+            case MEMORY -> config.memoryEchoEnabled();
+            case CORRUPTED -> config.corruptedEchoEnabled();
+            case MIMIC -> config.mimicEchoEnabled();
+            case FALSE_MEMORY -> config.falseMemoriesEnabled();
+            case ORIGINAL -> config.originalEnabled();
+        };
+    }
+
     private static void setDebug(boolean enabled) {
         EchoConfig updated = EchoProtocol.config().withDebugLogging(enabled);
-        EchoProtocol.reloadConfig();
+        EchoProtocol.applyConfig(updated);
         if (updated.debugLogging()) {
             EchoProtocol.LOGGER.info("Debug logging enabled.");
         }

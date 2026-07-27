@@ -12,6 +12,7 @@ public record FalseMemoryContext(
         FalseMemoryHistory history,
         FalseMemoryPlan plan,
         long eventTick,
+        boolean awardsProgress,
         Runnable observedCallback
 ) {
     public void markObserved() {

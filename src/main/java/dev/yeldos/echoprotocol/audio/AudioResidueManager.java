@@ -1,9 +1,11 @@
 package dev.yeldos.echoprotocol.audio;
 
+import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
 import net.minecraft.registry.Registries;
+import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
@@ -47,37 +49,44 @@ public final class AudioResidueManager {
         }
     }
 
-    public boolean play(ServerPlayerEntity target, EchoConfig config, long tick, boolean forced) {
-        if (!config.audioResidueEnabled() && !forced) {
-            return false;
+    public boolean play(ServerPlayerEntity target, EchoConfig config, long tick, boolean forced, boolean awardsProgress) {
+        if (!config.audioResidueEnabled()) {
+            return reject(config, target, "feature disabled");
         }
         if (!forced && sessionPlays.getOrDefault(target.getUuid(), 0) >= config.audioResidueMaximumPerSession()) {
-            return false;
+            return reject(config, target, "session maximum reached");
         }
         long cooldown = (long) config.audioResidueMinimumIntervalMinutes() * 60L * 20L;
         if (!forced && tick - lastPlayTicks.getOrDefault(target.getUuid(), Long.MIN_VALUE / 2) < cooldown) {
-            return false;
+            return reject(config, target, "cooldown active");
         }
         AudioResidue residue = latestInDimension(target);
         if (residue == null || !Registries.SOUND_EVENT.containsId(residue.soundId())) {
-            return false;
+            return reject(config, target, "no allowed captured sound in the current loaded dimension");
         }
         Optional<Vec3d> safe = SafeEchoPositionFinder.findSpawn(target.getServerWorld(), target,
                 residue.position().toCenterPos(), config);
         if (safe.isEmpty()) {
-            return false;
+            return reject(config, target, "no valid empty playback position");
         }
         SoundEvent sound = Registries.SOUND_EVENT.get(residue.soundId());
         Vec3d pos = safe.get();
         float volume = Math.min(0.55F, residue.volume()) * config.echoMasterVolume();
+        if (volume <= 0.0F) {
+            return reject(config, target, "master volume is muted");
+        }
         if (config.sharedEchoes()) {
             target.getServerWorld().playSound(null, pos.x, pos.y, pos.z, sound, SoundCategory.PLAYERS, volume, residue.pitch());
         } else {
-            target.playSoundToPlayer(sound, SoundCategory.PLAYERS, volume, residue.pitch());
+            target.networkHandler.sendPacket(new PlaySoundS2CPacket(Registries.SOUND_EVENT.getEntry(sound),
+                    SoundCategory.PLAYERS, pos.x, pos.y, pos.z, volume, residue.pitch(),
+                    target.getRandom().nextLong()));
         }
         sessionPlays.merge(target.getUuid(), 1, Integer::sum);
         lastPlayTicks.put(target.getUuid(), tick);
-        stageManager.grant(target, "not_my_footsteps");
+        if (awardsProgress) {
+            stageManager.grant(target, "not_my_footsteps");
+        }
         return true;
     }
 
@@ -88,6 +97,14 @@ public final class AudioResidueManager {
 
     public int sessionPlays(UUID playerUuid) {
         return sessionPlays.getOrDefault(playerUuid, 0);
+    }
+
+    public boolean isEligible(ServerPlayerEntity target, EchoConfig config, long tick) {
+        long cooldown = (long) config.audioResidueMinimumIntervalMinutes() * 60L * 20L;
+        return config.audioResidueEnabled()
+                && sessionPlays.getOrDefault(target.getUuid(), 0) < config.audioResidueMaximumPerSession()
+                && tick - lastPlayTicks.getOrDefault(target.getUuid(), Long.MIN_VALUE / 2) >= cooldown
+                && latestInDimension(target) != null;
     }
 
     public void disconnect(UUID playerUuid) {
@@ -124,5 +141,12 @@ public final class AudioResidueManager {
                 || path.contains("furnace") || path.contains("item") || path.contains("bow")
                 || path.contains("shield") || path.contains("eat") || path.contains("attack")
                 || path.contains("stonecutter") || path.contains("pickup");
+    }
+
+    private static boolean reject(EchoConfig config, ServerPlayerEntity target, String reason) {
+        if (config.debugLogging()) {
+            EchoProtocol.LOGGER.debug("Audio Residue rejected for {}: {}", target.getUuid(), reason);
+        }
+        return false;
     }
 }

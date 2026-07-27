@@ -76,8 +76,8 @@ public final class FalseMemoryDirector {
             deviations.set(0, FalseMemoryDeviation.REVERSE_ROUTE);
         }
         List<RecordedFrame> fabricated = fabricate(target, prefix, recording, deviations, random, config);
-        if (fabricated.isEmpty()) {
-            deviations = List.of(FalseMemoryDeviation.CROUCH_AT_WRONG_PLACE);
+        if (!FalseMemoryPlan.hasObservableDeviation(prefix.get(prefix.size() - 1), fabricated)) {
+            deviations = List.of(FalseMemoryDeviation.HEAD_SHAKE);
             fabricated = fabricate(target, prefix, recording, deviations, random, config);
         }
         RecordedFrame originalFirst = authentic.get(0);

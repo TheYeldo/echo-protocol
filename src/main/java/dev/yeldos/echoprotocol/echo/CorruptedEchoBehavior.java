@@ -22,6 +22,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
     private int replayCursor;
     private ItemStack wrongItem = ItemStack.EMPTY;
     private Vec3d hidingSpot;
+    private boolean desyncObserved;
 
     public CorruptedEchoBehavior(EchoEventContext context) {
         this.context = context;
@@ -70,7 +71,6 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         replayCursor = age;
         int desyncAt = Math.min(Math.max(40, echo.replayDurationTicks() / 2), echo.replayDurationTicks() - 10);
         if (!echo.applyReplayFrame(replayCursor, false) || age >= desyncAt) {
-            context.stageManager().grant(echo.getTargetPlayer(), "broken_memory");
             transition(EchoState.DESYNCHRONIZING, echo);
         }
     }
@@ -88,8 +88,15 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         if (stateAge % 18 == 0) {
             EchoVisualEffects.corruptedAfterimage(target, context.config(), echo.getPos());
         }
+        if (!desyncObserved && stateAge >= 8 && EchoVisibility.isLookingAt(target, echo, 0.72D)) {
+            desyncObserved = true;
+            context.markObserved();
+            if (context.awardsProgress()) {
+                context.stageManager().grant(target, "broken_memory");
+                context.stageManager().grant(target, "out_of_sync");
+            }
+        }
         if (stateAge > 35) {
-            context.stageManager().grant(target, "it_looked_back");
             transition(EchoState.WATCHING, echo);
         }
     }
@@ -98,6 +105,13 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         echo.lookAtTarget(0.2F);
         echo.setReplayOpacity(0.35F);
         boolean watched = EchoVisibility.isLookingAt(target, echo, 0.78D);
+        if (watched) {
+            context.markObserved();
+            if (context.awardsProgress()) {
+                context.stageManager().grant(target, "it_saw_me");
+                context.stageManager().grant(target, "it_looked_back");
+            }
+        }
         if (watched && stateAge > 25) {
             transition(context.config().corruptedEchoCanApproach() ? EchoState.APPROACHING : EchoState.FADING, echo);
         } else if (stateAge > 60) {
@@ -125,7 +139,9 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         boolean observed = EchoVisibility.isLookingAt(target, echo, 0.70D);
         if (context.config().echoMovesWhenUnobserved() && !observed && hidingSpot != null) {
             if (echo.moveToward(hidingSpot, 0.11D)) {
-                context.stageManager().grant(target, "behind_you");
+                if (context.awardsProgress()) {
+                    context.stageManager().grant(target, "behind_you");
+                }
             }
         }
         echo.setReplayOpacity(Math.max(0.05F, 0.35F - stateAge / 120.0F));

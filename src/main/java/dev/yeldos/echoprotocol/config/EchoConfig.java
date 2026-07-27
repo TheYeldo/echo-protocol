@@ -2,7 +2,8 @@ package dev.yeldos.echoprotocol.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonSyntaxException;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.yeldos.echoprotocol.EchoProtocol;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -87,7 +88,9 @@ public record EchoConfig(
         V04Settings v04
 ) {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("echo_protocol.json");
+    private static Path configPath() {
+        return FabricLoader.getInstance().getConfigDir().resolve("echo_protocol.json");
+    }
 
     public static EchoConfig defaults() {
         return new EchoConfig(true, 2, 10, 5, 15, 10, 60, 480, 1080, false, false, true, true, 0.45F, false,
@@ -99,19 +102,25 @@ public record EchoConfig(
     }
 
     public static EchoConfig load() {
+        return load(configPath());
+    }
+
+    public static EchoConfig load(Path path) {
         EchoConfig config = defaults();
         boolean safeToRewrite = true;
-        if (Files.exists(CONFIG_PATH)) {
-            try (Reader reader = Files.newBufferedReader(CONFIG_PATH)) {
-                Raw raw = GSON.fromJson(reader, Raw.class);
+        JsonObject original = null;
+        if (Files.exists(path)) {
+            try (Reader reader = Files.newBufferedReader(path)) {
+                original = JsonParser.parseReader(reader).getAsJsonObject();
+                Raw raw = GSON.fromJson(original, Raw.class);
                 config = fromRaw(raw).validate();
-            } catch (IOException | JsonSyntaxException | NullPointerException exception) {
+            } catch (IOException | RuntimeException exception) {
                 EchoProtocol.LOGGER.warn("Failed to load echo_protocol.json; using safe defaults.", exception);
                 safeToRewrite = false;
             }
         }
         if (safeToRewrite) {
-            config.save();
+            config.save(path, original);
         }
         return config;
     }
@@ -145,10 +154,32 @@ public record EchoConfig(
     }
 
     public void save() {
+        Path path = configPath();
+        JsonObject original = null;
+        if (Files.exists(path)) {
+            try (Reader reader = Files.newBufferedReader(path)) {
+                original = JsonParser.parseReader(reader).getAsJsonObject();
+            } catch (IOException | RuntimeException exception) {
+                EchoProtocol.LOGGER.warn("Refusing to overwrite malformed echo_protocol.json.", exception);
+                return;
+            }
+        }
+        save(path, original);
+    }
+
+    private void save(Path path, JsonObject original) {
         try {
-            Files.createDirectories(CONFIG_PATH.getParent());
-            try (Writer writer = Files.newBufferedWriter(CONFIG_PATH)) {
-                GSON.toJson(toRaw(), writer);
+            if (path.getParent() != null) {
+                Files.createDirectories(path.getParent());
+            }
+            JsonObject output = GSON.toJsonTree(toRaw()).getAsJsonObject();
+            if (original != null) {
+                original.entrySet().stream()
+                        .filter(entry -> !output.has(entry.getKey()))
+                        .forEach(entry -> output.add(entry.getKey(), entry.getValue().deepCopy()));
+            }
+            try (Writer writer = Files.newBufferedWriter(path)) {
+                GSON.toJson(output, writer);
             }
         } catch (IOException exception) {
             EchoProtocol.LOGGER.warn("Failed to save echo_protocol.json.", exception);
@@ -423,6 +454,9 @@ public record EchoConfig(
     }
 
     private static float clampFloat(float value, float min, float max) {
+        if (!Float.isFinite(value)) {
+            return min;
+        }
         return Math.max(min, Math.min(max, value));
     }
 

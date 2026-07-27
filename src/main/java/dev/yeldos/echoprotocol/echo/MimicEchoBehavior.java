@@ -117,7 +117,12 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         applyDelayedFrame(echo, false);
         successfulCopies++;
         if (successfulCopies == 80) {
-            context.stageManager().grant(target, "perfect_copy");
+            if (EchoVisibility.isLookingAt(target, echo, 0.55D)) {
+                context.markObserved();
+                if (context.awardsProgress()) {
+                    context.stageManager().grant(target, "perfect_copy");
+                }
+            }
         }
         if (stateAge > 120 || ThreadLocalRandom.current().nextInt(90) == 0) {
             transition(EchoState.DESYNCHRONIZING, echo);
@@ -129,25 +134,34 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         applyDelayedFrame(echo, mistake);
         if (mistake) {
             independentMoves++;
-            context.stageManager().grant(target, "not_me");
+            if (context.awardsProgress()) {
+                context.stageManager().grant(target, "not_me");
+            }
             if (!oldItems.isEmpty() && ThreadLocalRandom.current().nextBoolean()) {
                 echo.setHeldItemVisual(oldItems.get(ThreadLocalRandom.current().nextInt(oldItems.size())));
             }
             if (ThreadLocalRandom.current().nextBoolean()) {
                 echo.lookAtTarget(0.35F);
-                context.stageManager().grant(target, "it_looked_back");
+                context.markObserved();
+                if (context.awardsProgress()) {
+                    context.stageManager().grant(target, "it_looked_back");
+                }
             }
         }
         if (context.config().echoMovesWhenUnobserved() && !EchoVisibility.isLookingAt(target, echo, 0.68D) && stateAge % 45 == 0) {
             Vec3d closer = target.getPos().subtract(target.getRotationVec(1.0F).multiply(3.2D));
             if (echo.moveToward(closer, 0.75D)) {
-                context.stageManager().grant(target, "do_not_look_away");
-                context.stageManager().grant(target, "behind_you");
+                context.markObserved();
+                if (context.awardsProgress()) {
+                    context.stageManager().grant(target, "do_not_look_away");
+                    context.stageManager().grant(target, "behind_you");
+                }
                 EchoSoundPlayer.playUnseenMove(target, context.config(), echo.getPos());
             }
         }
         if (stateAge > 140) {
-            boolean hostile = forcedHostile || (context.config().mimicChaseEnabled() && ThreadLocalRandom.current().nextInt(4) == 0);
+            boolean hostile = target.getServerWorld().getDifficulty() != Difficulty.PEACEFUL
+                    && (forcedHostile || (context.config().mimicChaseEnabled() && ThreadLocalRandom.current().nextInt(4) == 0));
             transition(hostile ? EchoState.THREATENING : EchoState.APPROACHING, echo);
         }
     }
@@ -165,6 +179,10 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     }
 
     private void tickThreatening(EchoEntity echo, ServerPlayerEntity target) {
+        if (target.getServerWorld().getDifficulty() == Difficulty.PEACEFUL) {
+            transition(EchoState.DISAPPEARING, echo);
+            return;
+        }
         echo.lookAtTarget(0.25F);
         echo.setReplayOpacity(context.config().mimicThreateningOpacity());
         if (stateAge == 1) {
@@ -177,8 +195,9 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
             echo.moveToward(destination, 0.12D);
             tryDamage(echo, target);
         }
-        if (chaseTicks > chaseDurationTicks || echo.squaredDistanceTo(target) > 24.0D || hits >= context.config().mimicMaxHitsPerEvent()) {
-            if (hits > 0) {
+        if (stateAge > chaseDurationTicks || echo.squaredDistanceTo(target) > 24.0D
+                || hits >= context.config().mimicMaxHitsPerEvent()) {
+            if (hits > 0 && context.awardsProgress()) {
                 context.stageManager().grant(target, "copy_is_wrong");
             }
             transition(EchoState.DISAPPEARING, echo);

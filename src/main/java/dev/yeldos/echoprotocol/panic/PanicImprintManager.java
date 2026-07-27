@@ -93,7 +93,7 @@ public final class PanicImprintManager {
     }
 
     public boolean capture(ServerPlayerEntity player, PanicTriggerType type, EchoConfig config, long tick, boolean forced) {
-        if (!config.panicImprintsEnabled() && !forced) {
+        if (!config.panicImprintsEnabled()) {
             return false;
         }
         long cooldown = (long) config.panicImprintMinimumEventIntervalMinutes() * 60L * 20L;
@@ -113,7 +113,7 @@ public final class PanicImprintManager {
                 ? PanicImprint.HealthCategory.LOW : PanicImprint.HealthCategory.STABLE;
         PanicImprint imprint = new PanicImprint(frames,
                 player.getServerWorld().getRegistryKey().getValue().toString(), category, type,
-                player.getMainHandStack(), tick);
+                tick);
         Deque<PanicImprint> saved = imprints.computeIfAbsent(player.getUuid(), ignored -> new ArrayDeque<>());
         saved.addLast(imprint);
         while (saved.size() > config.panicImprintMaximumSaved()) {

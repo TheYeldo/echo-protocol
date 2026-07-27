@@ -31,7 +31,9 @@ public final class SafeEchoPositionFinder {
             double angle = Math.PI + ThreadLocalRandom.current().nextDouble(-1.25D, 1.25D);
             Vec3d rotated = rotateY(look, angle).multiply(distance);
             Vec3d candidate = dropToGround(world, target.getPos().add(rotated));
-            if (isValid(world, target, candidate, config, true)) {
+            if (isValid(world, target, candidate, config, true)
+                    && ViewAngle.outsideCentralView(look, candidate.add(0.0D, 1.0D, 0.0D)
+                    .subtract(target.getEyePos()), 0.65D)) {
                 return Optional.of(candidate);
             }
         }
@@ -61,7 +63,9 @@ public final class SafeEchoPositionFinder {
             double distance = ThreadLocalRandom.current().nextDouble(config.minimumEchoSpawnDistance(),
                     Math.max(config.minimumEchoSpawnDistance() + 1.0D, config.maximumEchoSpawnDistance()));
             Vec3d candidate = dropToGround(world, target.getPos().add(rotateY(look, angle).multiply(distance)));
-            if (isValid(world, target, candidate, config, true)) {
+            if (isValid(world, target, candidate, config, true)
+                    && ViewAngle.outsideCentralView(look, candidate.add(0.0D, 1.0D, 0.0D)
+                    .subtract(target.getEyePos()), 0.65D)) {
                 return Optional.of(candidate);
             }
         }

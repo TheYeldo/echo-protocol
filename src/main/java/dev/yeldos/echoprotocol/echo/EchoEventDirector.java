@@ -3,6 +3,7 @@ package dev.yeldos.echoprotocol.echo;
 import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.audio.AudioResidueEvent;
 import dev.yeldos.echoprotocol.audio.AudioResidueManager;
+import dev.yeldos.echoprotocol.audio.AudioResidue;
 import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.director.AdaptiveEventSelector;
 import dev.yeldos.echoprotocol.director.EchoEventHistory;
@@ -24,6 +25,7 @@ import dev.yeldos.echoprotocol.original.OriginalMovementMode;
 import dev.yeldos.echoprotocol.recording.PlayerRecording;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
+import dev.yeldos.echoprotocol.recording.ReplayFrames;
 import dev.yeldos.echoprotocol.recording.SoundMarker;
 import dev.yeldos.echoprotocol.sound.EchoSoundPlayer;
 import dev.yeldos.echoprotocol.stage.EchoStage;
@@ -32,12 +34,21 @@ import dev.yeldos.echoprotocol.stage.FamiliarLocationType;
 import dev.yeldos.echoprotocol.stage.PlayerEchoState;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
+import net.minecraft.block.AbstractFurnaceBlock;
+import net.minecraft.block.BedBlock;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.ChestBlock;
+import net.minecraft.block.CraftingTableBlock;
+import net.minecraft.block.DoorBlock;
+import net.minecraft.block.NetherPortalBlock;
 import net.minecraft.entity.boss.WitherEntity;
 import net.minecraft.entity.boss.dragon.EnderDragonEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -127,6 +138,9 @@ public final class EchoEventDirector {
     }
 
     public boolean spawnEcho(ServerPlayerEntity target, EchoType type, boolean forced, boolean forcedHostile, EchoConfig config) {
+        if (!featureEnabled(type, config)) {
+            return false;
+        }
         if (type == EchoType.FALSE_MEMORY) {
             return spawnFalseMemory(target, forced, false, config);
         }
@@ -145,16 +159,21 @@ public final class EchoEventDirector {
         if (segment.isEmpty()) {
             return false;
         }
-        RecordedFrame start = segment.get(0);
+        List<RecordedFrame> frames = type == EchoType.CORRUPTED ? corruptSegment(segment) : segment;
+        RecordedFrame start = frames.getFirst();
         ServerWorld world = target.getServerWorld();
         Optional<Vec3d> spawnPos = SafeEchoPositionFinder.findSpawn(world, target, start.pos(), config);
         if (spawnPos.isEmpty()) {
             return false;
         }
-        EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, forcedHostile);
+        EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, forcedHostile,
+                !forced, observedCallback(target, !forced));
         EchoBehaviorController behavior = behaviorFor(type, context);
-        List<RecordedFrame> frames = type == EchoType.CORRUPTED ? corruptSegment(segment) : segment;
-        EchoEntity echo = createEcho(target, frames, context, behavior, spawnPos.get(), start.bodyYaw(), start.pitch(), config);
+        List<RecordedFrame> replayFrames = type == EchoType.MIMIC ? frames : ReplayFrames.translated(frames, spawnPos.get());
+        EchoEntity echo = createEcho(target, replayFrames, context, behavior, spawnPos.get(), start.bodyYaw(), start.pitch(), config);
+        if (echo == null) {
+            return false;
+        }
         registerEcho(target, echo);
         if (type == EchoType.MIMIC) {
             lastMimicTick.put(target.getUuid(), stageManager.tick());
@@ -163,19 +182,21 @@ public final class EchoEventDirector {
                 mimicSpawnedThisSession.add(target.getUuid());
             }
         }
-        finishSpawnBookkeeping(target, type, recording, start, forced, config);
-        recordEvent(target, switch (type) {
-            case MEMORY -> EventCategory.MEMORY;
-            case CORRUPTED -> EventCategory.CORRUPTED;
-            case MIMIC -> EventCategory.MIMIC;
-            case ORIGINAL -> EventCategory.ORIGINAL;
-            case FALSE_MEMORY -> EventCategory.FALSE_MEMORY;
-        });
+        finishSpawnBookkeeping(target, type, recording, spawnPos.get(), forced, config);
+        if (!forced) {
+            recordEvent(target, switch (type) {
+                case MEMORY -> EventCategory.MEMORY;
+                case CORRUPTED -> EventCategory.CORRUPTED;
+                case MIMIC -> EventCategory.MIMIC;
+                case ORIGINAL -> EventCategory.ORIGINAL;
+                case FALSE_MEMORY -> EventCategory.FALSE_MEMORY;
+            });
+        }
         return true;
     }
 
     public boolean spawnFalseMemory(ServerPlayerEntity target, boolean forced, boolean forceDeviation, EchoConfig config) {
-        if (!config.falseMemoriesEnabled() && !forced) {
+        if (!config.falseMemoriesEnabled()) {
             return false;
         }
         PlayerRecording recording = recordingManager.get(target.getUuid());
@@ -189,7 +210,7 @@ public final class EchoEventDirector {
         if (optionalPlan.isEmpty()) {
             return false;
         }
-        return spawnFalsePlan(target, recording, optionalPlan.get(), config);
+        return spawnFalsePlan(target, recording, optionalPlan.get(), config, !forced);
     }
 
     public boolean replayPanic(ServerPlayerEntity target, EchoConfig config, boolean forced) {
@@ -204,27 +225,34 @@ public final class EchoEventDirector {
         }
         Optional<FalseMemoryPlan> optionalPlan = falseMemoryDirector.createPlan(target, recording, imprint, config,
                 stageManager.tick(), true);
-        return optionalPlan.isPresent() && spawnFalsePlan(target, recording, optionalPlan.get(), config);
+        return optionalPlan.isPresent() && spawnFalsePlan(target, recording, optionalPlan.get(), config, !forced);
     }
 
-    private boolean spawnFalsePlan(ServerPlayerEntity target, PlayerRecording recording, FalseMemoryPlan plan, EchoConfig config) {
+    private boolean spawnFalsePlan(ServerPlayerEntity target, PlayerRecording recording, FalseMemoryPlan plan,
+                                   EchoConfig config, boolean awardsProgress) {
         RecordedFrame start = plan.realPrefix().get(0);
+        Runnable observedCallback = observedCallback(target, awardsProgress);
         EchoEventContext echoContext = new EchoEventContext(target.getUuid(), config, stageManager, false,
-                () -> eventHistory.markLastObserved(target.getUuid()));
+                awardsProgress, observedCallback);
         FalseMemoryContext falseContext = new FalseMemoryContext(target.getUuid(), config, stageManager,
-                falseMemoryDirector.history(), plan, stageManager.tick(),
-                () -> eventHistory.markLastObserved(target.getUuid()));
+                falseMemoryDirector.history(), plan, stageManager.tick(), awardsProgress,
+                observedCallback);
         EchoEntity echo = createEcho(target, plan.realPrefix(), echoContext, new FalseMemoryBehavior(falseContext),
                 start.pos(), start.bodyYaw(), start.pitch(), config);
+        if (echo == null) {
+            return false;
+        }
         registerEcho(target, echo);
-        finishSpawnBookkeeping(target, EchoType.FALSE_MEMORY, recording, start, false, config);
-        recordEvent(target, plan.panicImprint() ? EventCategory.PANIC_IMPRINT
-                : plan.majorDeviation() ? EventCategory.MAJOR_FALSE_MEMORY : EventCategory.FALSE_MEMORY);
+        finishSpawnBookkeeping(target, EchoType.FALSE_MEMORY, recording, start.pos(), !awardsProgress, config);
+        if (awardsProgress) {
+            recordEvent(target, plan.panicImprint() ? EventCategory.PANIC_IMPRINT
+                    : plan.majorDeviation() ? EventCategory.MAJOR_FALSE_MEMORY : EventCategory.FALSE_MEMORY);
+        }
         return true;
     }
 
     public boolean spawnPeripheral(ServerPlayerEntity target, EchoConfig config, boolean forced) {
-        if (!config.peripheralEchoesEnabled() && !forced) {
+        if (!config.peripheralEchoesEnabled()) {
             return false;
         }
         UUID uuid = target.getUuid();
@@ -245,14 +273,19 @@ public final class EchoEventDirector {
         }
         RecordedFrame frame = recording.latest();
         EchoEventContext context = new EchoEventContext(uuid, config, stageManager, false,
-                () -> eventHistory.markLastObserved(uuid));
+                !forced, observedCallback(target, !forced));
         EchoEntity echo = createEcho(target, List.of(frame), context,
                 new PeripheralEchoBehavior(context, config.peripheralEchoDurationSeconds() * 20),
                 pos.get(), target.bodyYaw + 180.0F, target.getPitch(), config);
+        if (echo == null) {
+            return false;
+        }
         registerEcho(target, echo);
         peripheralSessionCounts.merge(uuid, 1, Integer::sum);
         lastPeripheralTicks.put(uuid, tick);
-        recordEvent(target, EventCategory.PERIPHERAL);
+        if (!forced) {
+            recordEvent(target, EventCategory.PERIPHERAL);
+        }
         return true;
     }
 
@@ -260,8 +293,8 @@ public final class EchoEventDirector {
         if (!forced && isInImmediateDanger(target)) {
             return false;
         }
-        boolean played = audioResidues.play(target, config, stageManager.tick(), forced);
-        if (played) {
+        boolean played = audioResidues.play(target, config, stageManager.tick(), forced, !forced);
+        if (played && !forced) {
             recordEvent(target, EventCategory.AUDIO_RESIDUE, true);
         }
         return played;
@@ -283,8 +316,8 @@ public final class EchoEventDirector {
             return false;
         }
         ServerWorld world = target.getServerWorld();
-        PlayerHabitSummary.Habit habit = chooseHabit(target, config).orElse(null);
-        FamiliarLocation location = habit == null ? chooseOriginalLocation(target, config).orElse(null) : null;
+        PlayerHabitSummary.Habit habit = chooseHabit(target, config, requestedEvent).orElse(null);
+        FamiliarLocation location = habit == null ? chooseOriginalLocation(target, config, requestedEvent).orElse(null) : null;
         Vec3d anchor = habit != null ? habit.position().toCenterPos()
                 : location == null ? target.getPos() : location.pos().toCenterPos();
         OriginalEventKind eventKind = requestedEvent != null ? requestedEvent
@@ -303,19 +336,26 @@ public final class EchoEventDirector {
         ItemStack heldItem = habit != null && !habit.visualItem().isEmpty()
                 ? habit.visualItem() : chooseFamiliarItem(recording, target);
         List<Vec3d> knownLocations = collectOriginalAnchors(target);
-        EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, false);
+        EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, false,
+                !forced, observedCallback(target, !forced));
         EchoEntity echo = createEcho(target, List.of(frame), context,
-                new OriginalEchoBehavior(context, eventKind, anchor, knownLocations, heldItem, movementTest), spawnPos.get(),
+                new OriginalEchoBehavior(context, eventKind, anchor, knownLocations, heldItem, movementTest,
+                        habit != null || location != null,
+                        habit != null && habit.type() == HabitType.SLEEPING
+                                || location != null && location.type() == FamiliarLocationType.BED), spawnPos.get(),
                 target.bodyYaw + 180.0F, target.getPitch(), config);
-        registerEcho(target, echo);
-        state.incrementTotalEvents();
-        state.incrementEchoEvent(EchoType.ORIGINAL);
-        EchoSoundPlayer.playSpawnProfile(target, EchoType.ORIGINAL, config, spawnPos.get());
-        stageManager.grant(target, "my_place");
-        if (eventKind == OriginalEventKind.ALREADY_HOME || eventKind == OriginalEventKind.YOUR_BED) {
-            stageManager.grant(target, "already_home");
+        if (echo == null) {
+            return false;
         }
-        recordEvent(target, EventCategory.ORIGINAL);
+        registerEcho(target, echo);
+        if (!forced) {
+            state.incrementTotalEvents();
+            state.incrementEchoEvent(EchoType.ORIGINAL);
+        }
+        EchoSoundPlayer.playSpawnProfile(target, EchoType.ORIGINAL, config, spawnPos.get());
+        if (!forced) {
+            recordEvent(target, EventCategory.ORIGINAL);
+        }
         return true;
     }
 
@@ -372,8 +412,8 @@ public final class EchoEventDirector {
         return false;
     }
 
-    public void playDebugSound(ServerPlayerEntity target, EchoType type) {
-        EchoSoundPlayer.playSpawnProfile(target, type, EchoProtocol.config(), target.getPos());
+    public boolean playDebugSound(ServerPlayerEntity target, EchoType type) {
+        return EchoSoundPlayer.playSpawnProfile(target, type, EchoProtocol.config(), target.getPos());
     }
 
     public boolean capturePanic(ServerPlayerEntity target, EchoConfig config) {
@@ -381,6 +421,7 @@ public final class EchoEventDirector {
     }
 
     public List<PanicImprint> panicImprints(UUID playerUuid) { return panicImprints.list(playerUuid); }
+    public List<AudioResidue> audioResidues(UUID playerUuid) { return audioResidues.list(playerUuid); }
     public int clearPanic(UUID playerUuid) { return panicImprints.clear(playerUuid); }
     public List<PlayerHabitSummary.Habit> habits(UUID playerUuid) { return habits.habits(playerUuid); }
     public int clearHabits(UUID playerUuid) { return habits.clear(playerUuid); }
@@ -419,6 +460,10 @@ public final class EchoEventDirector {
     }
 
     public void onDisconnect(ServerPlayerEntity player) {
+        clearPlayer(player);
+    }
+
+    public void clearPlayer(ServerPlayerEntity player) {
         stopEvents(player);
         UUID uuid = player.getUuid();
         recordingManager.clear(uuid);
@@ -429,12 +474,12 @@ public final class EchoEventDirector {
         falseMemoryDirector.clear(uuid);
         lastMimicTick.remove(uuid);
         mimicSpawnedThisSession.remove(uuid);
-        peripheralSessionCounts.remove(player.getUuid());
-        lastPeripheralTicks.remove(player.getUuid());
-        dimensions.remove(player.getUuid());
-        dimensionChangeTicks.remove(player.getUuid());
-        lastSleepTicks.remove(player.getUuid());
-        EchoSoundPlayer.clear(player.getUuid());
+        peripheralSessionCounts.remove(uuid);
+        lastPeripheralTicks.remove(uuid);
+        dimensions.remove(uuid);
+        dimensionChangeTicks.remove(uuid);
+        lastSleepTicks.remove(uuid);
+        EchoSoundPlayer.clear(uuid);
     }
 
     private EventCategory chooseEvent(ServerPlayerEntity target, EchoConfig config) {
@@ -460,10 +505,10 @@ public final class EchoEventDirector {
         if (config.panicImprintsEnabled() && !panicImprints.list(target.getUuid()).isEmpty()) {
             candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.PANIC_IMPRINT, 3));
         }
-        if (config.peripheralEchoesEnabled()) {
+        if (canSpawnPeripheral(target, config)) {
             candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.PERIPHERAL, night ? 7 : 4));
         }
-        if (config.audioResidueEnabled() && !audioResidues.list(target.getUuid()).isEmpty()) {
+        if (audioResidues.isEligible(target, config, stageManager.tick())) {
             candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.AUDIO_RESIDUE, underground ? 6 : 4));
         }
         return selector.select(target.getUuid(), stageManager.tick(), candidates, eventHistory, config);
@@ -526,6 +571,7 @@ public final class EchoEventDirector {
         if (previous != null && !previous.equals(current)) {
             dimensionChangeTicks.put(player.getUuid(), stageManager.tick());
             stopEvents(player);
+            recordingManager.clear(player.getUuid());
         }
     }
 
@@ -559,9 +605,27 @@ public final class EchoEventDirector {
         };
     }
 
+    private static boolean featureEnabled(EchoType type, EchoConfig config) {
+        return switch (type) {
+            case MEMORY -> config.memoryEchoEnabled();
+            case CORRUPTED -> config.corruptedEchoEnabled();
+            case MIMIC -> config.mimicEchoEnabled();
+            case FALSE_MEMORY -> config.falseMemoriesEnabled();
+            case ORIGINAL -> config.originalEnabled();
+        };
+    }
+
+    private boolean canSpawnPeripheral(ServerPlayerEntity target, EchoConfig config) {
+        UUID uuid = target.getUuid();
+        return config.peripheralEchoesEnabled()
+                && peripheralSessionCounts.getOrDefault(uuid, 0) < config.peripheralEchoMaximumPerSession()
+                && stageManager.tick() - lastPeripheralTicks.getOrDefault(uuid, Long.MIN_VALUE / 2)
+                >= (long) config.peripheralEchoMinimumIntervalMinutes() * 60L * 20L;
+    }
+
     private static EchoBehaviorController behaviorFor(EchoType type, EchoEventContext context) {
         return switch (type) {
-            case MEMORY -> new MemoryEchoBehavior();
+            case MEMORY -> new MemoryEchoBehavior(context);
             case CORRUPTED -> new CorruptedEchoBehavior(context);
             case MIMIC -> new MimicEchoBehavior(context);
             case ORIGINAL, FALSE_MEMORY -> throw new IllegalArgumentException("Echo type uses a specialized spawn path: " + type);
@@ -574,8 +638,7 @@ public final class EchoEventDirector {
         echo.configure(target.getUuid(), config.sharedEchoes(), frames, config.recordingSampleIntervalTicks(),
                 config, context, behavior);
         echo.refreshPositionAndAngles(pos.x, pos.y, pos.z, yaw, pitch);
-        target.getServerWorld().spawnEntity(echo);
-        return echo;
+        return target.getServerWorld().spawnEntity(echo) ? echo : null;
     }
 
     private void registerEcho(ServerPlayerEntity target, EchoEntity echo) {
@@ -584,23 +647,18 @@ public final class EchoEventDirector {
     }
 
     private void finishSpawnBookkeeping(ServerPlayerEntity target, EchoType type, PlayerRecording recording,
-                                        RecordedFrame start, boolean forced, EchoConfig config) {
+                                        Vec3d effectPosition, boolean forced, EchoConfig config) {
         PlayerEchoState state = stageManager.state(target.getUuid());
-        EchoSoundPlayer.playSpawnProfile(target, type, config, start.pos());
-        state.incrementTotalEvents();
-        state.incrementEchoEvent(type);
-        stageManager.grant(target, "deja_vu");
-        if (type == EchoType.MEMORY) {
-            stageManager.grant(target, "that_was_me");
+        EchoSoundPlayer.playSpawnProfile(target, type, config, effectPosition);
+        if (!forced) {
+            state.incrementTotalEvents();
+            state.incrementEchoEvent(type);
         }
-        if (config.realPlayerSkins() && target.getGameProfile().getProperties().containsKey("textures")) {
-            stageManager.grant(target, "familiar_face");
-        }
-        if (forced || ThreadLocalRandom.current().nextInt(6) == 0) {
+        if (ThreadLocalRandom.current().nextInt(6) == 0) {
             playMemorySound(target, recording, config);
         }
         if (config.torchFlicker() || config.echoLightEffects()) {
-            spawnTargetedParticles(target, new Vec3d(start.x(), start.y() + 1.1D, start.z()));
+            spawnTargetedParticles(target, effectPosition.add(0.0D, 1.1D, 0.0D));
         }
         if (state.stage() == EchoStage.CORRUPTED_MEMORY && config.chatEchoes() && type != EchoType.FALSE_MEMORY) {
             maybeEchoChat(target, recording);
@@ -613,6 +671,24 @@ public final class EchoEventDirector {
 
     private void recordEvent(ServerPlayerEntity target, EventCategory category, boolean observed) {
         eventHistory.record(target.getUuid(), category, stageManager.tick(), observed, EchoProtocol.config());
+    }
+
+    private Runnable observedCallback(ServerPlayerEntity target, boolean awardsProgress) {
+        boolean[] handled = {false};
+        return () -> {
+            if (handled[0]) {
+                return;
+            }
+            handled[0] = true;
+            eventHistory.markLastObserved(target.getUuid());
+            if (awardsProgress) {
+                stageManager.grant(target, "deja_vu");
+                if (EchoProtocol.config().realPlayerSkins()
+                        && target.getGameProfile().getProperties().containsKey("textures")) {
+                    stageManager.grant(target, "familiar_face");
+                }
+            }
+        };
     }
 
     private static List<RecordedFrame> corruptSegment(List<RecordedFrame> original) {
@@ -634,7 +710,8 @@ public final class EchoEventDirector {
         return count;
     }
 
-    private Optional<PlayerHabitSummary.Habit> chooseHabit(ServerPlayerEntity target, EchoConfig config) {
+    private Optional<PlayerHabitSummary.Habit> chooseHabit(ServerPlayerEntity target, EchoConfig config,
+                                                            OriginalEventKind requestedEvent) {
         if (!config.borrowedHabitsEnabled()) {
             return Optional.empty();
         }
@@ -644,10 +721,13 @@ public final class EchoEventDirector {
                 .filter(habit -> habit.dimension().equals(dimension))
                 .filter(habit -> target.getServerWorld().isChunkLoaded(habit.position()))
                 .filter(habit -> habit.position().getSquaredDistance(target.getBlockPos()) <= localRadius * localRadius)
+                .filter(habit -> validHabitAnchor(target.getServerWorld(), habit))
+                .filter(habit -> requestedEvent == null || eventMatches(requestedEvent, habit.type()))
                 .findFirst();
     }
 
-    private Optional<FamiliarLocation> chooseOriginalLocation(ServerPlayerEntity target, EchoConfig config) {
+    private Optional<FamiliarLocation> chooseOriginalLocation(ServerPlayerEntity target, EchoConfig config,
+                                                               OriginalEventKind requestedEvent) {
         if (!config.originalFamiliarLocationsEnabled()) {
             return Optional.empty();
         }
@@ -657,7 +737,64 @@ public final class EchoEventDirector {
                 .filter(location -> location.dimension().equals(dimension))
                 .filter(location -> target.getServerWorld().isChunkLoaded(location.pos()))
                 .filter(location -> location.pos().getSquaredDistance(target.getBlockPos()) <= localRadius * localRadius)
+                .filter(location -> validFamiliarAnchor(target.getServerWorld(), location))
+                .filter(location -> requestedEvent == null || eventMatches(requestedEvent, location.type()))
                 .sorted((left, right) -> Integer.compare(right.visits(), left.visits())).findFirst();
+    }
+
+    private static boolean eventMatches(OriginalEventKind event, HabitType type) {
+        return switch (event) {
+            case YOUR_BED, ALREADY_HOME -> type == HabitType.SLEEPING;
+            case WRONG_OWNER -> type == HabitType.STORAGE;
+            case OCCUPIED_PLACE -> type == HabitType.CRAFTING || type == HabitType.FURNACE;
+            case EARLIER_THAN_YOU, EMPTY_ROOM -> type == HabitType.ENTRY_ROUTE || type == HabitType.PORTAL;
+            case FAMILIAR_ITEM -> type == HabitType.FREQUENT_ITEM;
+            case WAITING, CONFRONTATION -> true;
+        };
+    }
+
+    private static boolean eventMatches(OriginalEventKind event, FamiliarLocationType type) {
+        return switch (event) {
+            case YOUR_BED -> type == FamiliarLocationType.BED;
+            case ALREADY_HOME -> type == FamiliarLocationType.HOME || type == FamiliarLocationType.BED;
+            case WRONG_OWNER -> type == FamiliarLocationType.CHEST;
+            case OCCUPIED_PLACE -> type == FamiliarLocationType.CRAFTING || type == FamiliarLocationType.FURNACE;
+            case EARLIER_THAN_YOU -> type == FamiliarLocationType.PORTAL || type == FamiliarLocationType.MINE_ENTRANCE
+                    || type == FamiliarLocationType.DOORWAY;
+            case EMPTY_ROOM -> type == FamiliarLocationType.DOORWAY;
+            case FAMILIAR_ITEM -> false;
+            case WAITING, CONFRONTATION -> true;
+        };
+    }
+
+    private static boolean validHabitAnchor(ServerWorld world, PlayerHabitSummary.Habit habit) {
+        Object block = world.getBlockState(habit.position()).getBlock();
+        return switch (habit.type()) {
+            case STORAGE -> block instanceof ChestBlock;
+            case SLEEPING -> block instanceof BedBlock;
+            case CRAFTING -> block instanceof CraftingTableBlock;
+            case FURNACE -> block instanceof AbstractFurnaceBlock;
+            case ENTRY_ROUTE -> block instanceof DoorBlock;
+            case PORTAL -> block instanceof NetherPortalBlock
+                    || world.getBlockState(habit.position()).isOf(Blocks.END_PORTAL)
+                    || world.getBlockState(habit.position()).isOf(Blocks.END_GATEWAY);
+            case IDLE, FREQUENT_ITEM -> true;
+        };
+    }
+
+    private static boolean validFamiliarAnchor(ServerWorld world, FamiliarLocation location) {
+        Object block = world.getBlockState(location.pos()).getBlock();
+        return switch (location.type()) {
+            case BED -> block instanceof BedBlock;
+            case CHEST -> block instanceof ChestBlock;
+            case CRAFTING -> block instanceof CraftingTableBlock;
+            case FURNACE -> block instanceof AbstractFurnaceBlock;
+            case DOORWAY -> block instanceof DoorBlock;
+            case PORTAL -> block instanceof NetherPortalBlock
+                    || world.getBlockState(location.pos()).isOf(Blocks.END_PORTAL)
+                    || world.getBlockState(location.pos()).isOf(Blocks.END_GATEWAY);
+            case IDLE, HOME, MINE_ENTRANCE, MANUAL -> true;
+        };
     }
 
     private static OriginalEventKind chooseOriginalEvent(FamiliarLocation location) {
@@ -708,7 +845,8 @@ public final class EchoEventDirector {
                 break;
             }
             if (habit.dimension().equals(dimension) && target.getServerWorld().isChunkLoaded(habit.position())
-                    && habit.position().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D) {
+                    && habit.position().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D
+                    && validHabitAnchor(target.getServerWorld(), habit)) {
                 addDistinctAnchor(result, habit.position().toCenterPos());
             }
         }
@@ -717,7 +855,8 @@ public final class EchoEventDirector {
                 break;
             }
             if (location.dimension().equals(dimension) && target.getServerWorld().isChunkLoaded(location.pos())
-                    && location.pos().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D) {
+                    && location.pos().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D
+                    && validFamiliarAnchor(target.getServerWorld(), location)) {
                 addDistinctAnchor(result, location.pos().toCenterPos());
             }
         }
@@ -760,7 +899,9 @@ public final class EchoEventDirector {
             target.getServerWorld().playSound(null, marker.x(), marker.y(), marker.z(), marker.sound(),
                     SoundCategory.PLAYERS, Math.min(marker.volume(), 0.6F), marker.pitch());
         } else {
-            target.playSoundToPlayer(marker.sound(), SoundCategory.PLAYERS, Math.min(marker.volume(), 0.6F), marker.pitch());
+            target.networkHandler.sendPacket(new PlaySoundS2CPacket(Registries.SOUND_EVENT.getEntry(marker.sound()),
+                    SoundCategory.PLAYERS, marker.x(), marker.y(), marker.z(), Math.min(marker.volume(), 0.6F),
+                    marker.pitch(), target.getRandom().nextLong()));
         }
     }
 
@@ -801,6 +942,7 @@ public final class EchoEventDirector {
         panicImprints.clearAll();
         audioResidues.clearAll();
         habits.clearAll();
+        EchoSoundPlayer.clearAll();
         lastGlobalMimicTick = -9999999L;
     }
 }
