@@ -6,6 +6,7 @@ import dev.yeldos.echoprotocol.echo.EchoEventContext;
 import dev.yeldos.echoprotocol.echo.EchoState;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
+import dev.yeldos.echoprotocol.privacy.EchoPrivacy;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity.RemovalReason;
 import net.minecraft.entity.EntityPose;
@@ -416,7 +417,9 @@ public final class EchoEntity extends MobEntity {
     }
 
     public boolean visibleTo(UUID viewerUuid) {
-        return dataTracker.get(SHARED) || dataTracker.get(TARGET).map(viewerUuid::equals).orElse(false);
+        return dataTracker.get(TARGET)
+                .map(target -> EchoPrivacy.mayReceiveVisual(dataTracker.get(SHARED), target, viewerUuid))
+                .orElse(false);
     }
 
     @Override

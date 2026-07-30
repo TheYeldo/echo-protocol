@@ -1,6 +1,7 @@
 package dev.yeldos.echoprotocol.director;
 
 import dev.yeldos.echoprotocol.config.EchoConfig;
+import dev.yeldos.echoprotocol.config.EchoPresetManager;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -63,7 +64,8 @@ public final class EchoEventHistory {
 
     public boolean strongSilenceActive(UUID playerUuid, long tick, EchoConfig config) {
         long last = lastStrongTicks.getOrDefault(playerUuid, Long.MIN_VALUE / 2);
-        return tick - last < (long) config.strongEventSilenceMinutes() * 60L * 20L;
+        return tick - last < (long) EchoPresetManager.strongSilenceMinutes(
+                config.strongEventSilenceMinutes(), config) * 60L * 20L;
     }
 
     public List<Entry> entries(UUID playerUuid) {

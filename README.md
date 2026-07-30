@@ -2,7 +2,7 @@
 
 Echo Protocol is a standalone Fabric mod for Minecraft Java Edition 1.21.1. The world records short, bounded slices of a player's recent movement and later replays distorted memories as translucent Echoes.
 
-This is an alpha release. Features are playable, but behavior, configuration defaults, and save data may change before a stable release. Version `0.4.1-alpha` is a stability update for the existing 0.4 systems; it does not add a new progression stage or Echo type.
+`0.5.0-beta.1 — The House Remembers` is the first beta. It connects existing Echo systems through bounded persistent memories, familiar-room relationships, and short generated Memory Threads. Beta does not mean feature-complete; the persistent format may still evolve, and backups are recommended before testing beta builds.
 
 ## Requirements
 
@@ -26,14 +26,14 @@ Windows:
 gradlew.bat clean build
 ```
 
-No global Gradle installation is required. The generated mod JAR is written to `build/libs/echo-protocol-0.4.1-alpha.jar`.
+No global Gradle installation is required. The generated mod JAR is written to `build/libs/echo-protocol-0.5.0-beta.1.jar`.
 
 ## Installation
 
 1. Install Minecraft Java Edition 1.21.1.
 2. Install Fabric Loader 0.16.14 or a compatible 1.21.1 loader.
 3. Install Fabric API 0.116.13+1.21.1 in the `mods` folder.
-4. Place `echo-protocol-0.4.1-alpha.jar` in the same `mods` folder.
+4. Place `echo-protocol-0.5.0-beta.1.jar` in the same `mods` folder.
 5. Launch the client or dedicated server with Java 21.
 
 ## Echo Types
@@ -46,13 +46,24 @@ No global Gradle installation is required. The generated mod JAR is written to `
 - Audio Residue replays only allow-listed Minecraft sound identifiers from bounded interaction history; it never records audio, microphones, voice chat, or private messages.
 - The Original appears only after rare late-game Stage 3 requirements. It uses the target player's skin, familiar locations, and bounded habit summaries. Its deliberate local movement uses event-specific action plans, acceleration and deceleration, observation-aware pauses, bounded waypoint planning, and stuck recovery without becoming a normal mob or boss.
 
+## The House Remembers
+
+- Room Memory learns small, approximate relationships between repeatedly used loaded locations. It never scans a base or reads a container.
+- Memory Threads generate 2–4 connected events around a room, route, sound, habit, item, or Panic Imprint. They are not a named quest or fixed campaign, and their type is hidden from ordinary players.
+- Contradictory Memories reuse authentic bounded movement context, then produce one of seven temporary non-destructive contradictions.
+- Contamination shifts bounded event weights while always leaving authentic memories and quiet sessions possible.
+- The Observation Profile contains only decaying gameplay counters. It is not a diagnosis and never manipulates input, camera, or movement.
+- The Original may conclude a thread at a location established by earlier events while retaining the existing collision-checked local controller.
+
 ## Multiplayer and Privacy
 
-Echo Protocol supports dedicated servers and multiplayer. By default, `shared_echoes` is `false`: a server tracking filter prevents unrelated clients from receiving private Echo spawn and movement packets. Private Echo sounds, particles, False Memory events, Panic Imprint replays, Audio Residue, Original text, and chat echoes are target-only. Full recordings, familiar locations, Panic metadata, habit summaries, and event history remain server-side. When `shared_echoes` is `true`, nearby players may see and hear appropriate public entities/effects, but private metadata and summaries remain target-only.
+Echo Protocol supports dedicated servers and multiplayer. By default, `shared_echoes` is `false`: a server tracking filter prevents unrelated clients from receiving private Echo spawn and movement packets. Private Echo sounds, particles, False Memory events, Panic Imprint replays, Audio Residue, Original text, and memory fragments are target-only. Full recordings, room graphs, Memory Threads, contamination, observation profiles, familiar locations, and compact summaries remain server-side. When `shared_echoes` is `true`, nearby players may see and hear appropriate public entities/effects, but private metadata and personal text remain target-only.
 
 ## Configuration
 
 The config file is created at `config/echo_protocol.json` on first server start.
+
+The complete beta keys, preset semantics, validation, and migration behavior are documented in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md). Existing keys remain valid:
 
 ```json
 {
@@ -180,6 +191,8 @@ Values are clamped to safe bounds. Missing fields are merged into 0.2, 0.3, and 
 
 All commands require permission level 2.
 
+The complete beta diagnostic, thread, contradiction, contamination, and preset command reference is in [`docs/COMMANDS.md`](docs/COMMANDS.md).
+
 Commands that start gameplay behavior return success only after an entity was accepted by the world or a sound packet was sent. A rejected request returns failure. `clear` also ends active events and removes session histories; `skin clear-cache` sends a real request to compatible connected clients.
 
 - `/echo_protocol stage get <player>`
@@ -214,6 +227,13 @@ Commands that start gameplay behavior return success only after an entity was ac
 - `/echo_protocol director status <player>`
 - `/echo_protocol director history <player>`
 - `/echo_protocol director clear-history <player>`
+- `/echo_protocol memory <status|rooms|threads|contamination|profile|validate> <player>`
+- `/echo_protocol memory <clear-thread|clear-profile|reset-beta-data> <player>`
+- `/echo_protocol thread start <player> <type>`
+- `/echo_protocol thread <advance|cancel|status> <player>`
+- `/echo_protocol contradiction spawn <player> <variant>`
+- `/echo_protocol contamination <get|set|add|reset> <player> [value]`
+- `/echo_protocol preset <subtle|standard|intense|custom|status>`
 - `/echo_protocol skin status <player>`
 - `/echo_protocol skin clear-cache <player>`
 - `/echo_protocol visual memory <player>`
@@ -232,27 +252,27 @@ Commands that start gameplay behavior return success only after an entity was ac
 
 Recording is bounded per online player. With the default interval of 2 ticks and 10 minutes of history, each player stores at most 6,000 movement frames plus a small bounded set of sound/chat markers. Mimic Echoes use a separate bounded delayed movement queue of about 220 frames while active. Stage 3 adds up to `original_maximum_familiar_locations` lightweight familiar-location entries per player; the default is 16 entries containing only type, dimension, block position, visit count, and last-seen tick. An active Original caches at most 12 action segments and 5 local waypoints. Route calculation examines at most 320 already-loaded local positions and runs only when a segment starts or recovery is needed, never every tick. Skin rendering uses Minecraft's client skin provider and a bounded 64-entry client-side resolver cache; the server stores only the target UUID needed for allowed viewers. Safe spawn checks use at most `safe_spawn_attempts` local attempts and never force-load chunks. The implementation avoids full mob navigation, chunk force-loading, block entity ticking, and global entity scans. Echo entities are short-lived, non-colliding, server-directed events.
 
-False Memory plans are capped at 2,400 authentic and 160 fabricated frames; normal config bounds are lower at default sampling. Each player has at most 4 Panic Imprints by default (160 recent frames each), 24 lightweight Audio Residue identifiers, 12 habit summaries, and 12 director-history entries. These structures are cleared safely at server shutdown; session counters and active entities are cleaned on disconnect or dimension transfer.
+False Memory plans are capped at 2,400 authentic and 160 fabricated frames; normal config bounds are lower at default sampling. Persistent beta data is separately capped at 3 Panic summaries of 48 sampled frames, 16 Audio Residues, 16 habits, 20 room nodes, 48 edges, 24 significant events, 8 completed thread types, and 4 compact seeds per player. Session counters and active entities are cleaned on disconnect or dimension transfer; compact persistent context remains available after restart.
 
-Estimated additional 0.4 overhead is about 150–350 KB per active player at defaults, depending mostly on held-item component data in Panic Imprint frames. Combined with the existing 6,000-frame movement history, total use remains roughly 1.2–2.4 MB per active player on a typical 64-bit JVM. No new system scans the full world or force-loads chunks.
+Estimated beta persistent NBT is roughly 25–70 KiB per player at hard bounds. An active Memory Thread uses about 1–3 KiB plus the temporary Echo behavior it selects. Combined runtime use remains dominated by the existing 6,000-frame session recording (roughly 1.2–2.4 MB per active player on a typical 64-bit JVM). Room probes check at most 256 already-loaded positions within radius 8 once per configured interval or explicit interaction. No beta system scans the world or force-loads chunks.
 
 The reworked Original controller retains roughly 3–8 KB per active event for its action plan, observation counters, and waypoints. A route calculation may transiently allocate roughly 50–150 KB for at most 320 local search nodes; that data is released after planning and is not rebuilt every tick.
 
 ## Known Limitations
 
 - Echo behavior uses bounded scripted plans rather than general-purpose mob navigation.
-- Recordings are kept in memory and are not preserved across server restarts.
-- Panic Imprints, Audio Residue history, habit summaries, and adaptive event history are session-scoped in this alpha; progression and familiar locations remain persistent.
+- Full recordings are kept in memory and are not preserved across server restarts; only bounded summaries are persisted.
+- Room detection and room meaning are heuristic; changed blocks can leave a stale low-value node until later observations supersede it.
 - Sound design currently relies mostly on compatible vanilla sound events.
 - Some menu and portal-state detection is limited by server-side information.
-- The Original's familiar-location system is heuristic and bounded; it does not inspect container contents or infer detailed base ownership.
+- The Original's familiar-location and Room Memory systems are heuristic and bounded; they do not inspect container contents or infer detailed base ownership.
 - The Original uses bounded local waypoint planning rather than advanced navigation. Complex multi-floor routes, closed doors, ladders, and long paths may deliberately fall back or disappear.
 - Fabricated movement uses bounded scripted segments rather than general pathfinding; a blocked route may end early and disappear safely.
 - Headless automated and dedicated-server checks cannot establish subjective visual quality, classic/slim skin appearance, or camera-edge comfort; use the manual smoke test for those checks.
 
 ## Test Checklist
 
-- New Fabric project launches.
+- Existing Fabric project launches without replacing the 0.4.1 architecture.
 - Dedicated server launches.
 - Player history is recorded.
 - Recording buffer remains bounded.

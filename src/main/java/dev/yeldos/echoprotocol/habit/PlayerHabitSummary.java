@@ -6,6 +6,9 @@ import net.minecraft.util.math.BlockPos;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import dev.yeldos.echoprotocol.memory.PersistentHabit;
+import net.minecraft.registry.Registries;
+import net.minecraft.util.Identifier;
 
 public final class PlayerHabitSummary {
     public static final class Habit {
@@ -76,5 +79,17 @@ public final class PlayerHabitSummary {
         int count = habits.size();
         habits.clear();
         return count;
+    }
+
+    public void restore(PersistentHabit persistent) {
+        ItemStack item = ItemStack.EMPTY;
+        Identifier id = Identifier.tryParse(persistent.visualItemId());
+        if (id != null && Registries.ITEM.containsId(id)) {
+            item = new ItemStack(Registries.ITEM.get(id));
+        }
+        Habit habit = new Habit(persistent.type(), persistent.dimension(), persistent.position(), item,
+                persistent.lastSeenTick());
+        habit.observations = persistent.observations();
+        habits.add(habit);
     }
 }

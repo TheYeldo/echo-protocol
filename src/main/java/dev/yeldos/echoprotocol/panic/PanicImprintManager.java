@@ -4,6 +4,8 @@ import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.recording.PlayerRecording;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
 import dev.yeldos.echoprotocol.recording.RecordingManager;
+import dev.yeldos.echoprotocol.memory.PersistentPanicImprint;
+import dev.yeldos.echoprotocol.stage.StageManager;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.util.UseAction;
@@ -18,9 +20,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class PanicImprintManager {
     private final RecordingManager recordings;
+    private final StageManager stageManager;
     private final Map<UUID, Deque<PanicImprint>> imprints = new HashMap<>();
     private final Map<UUID, Long> lastCaptureTicks = new HashMap<>();
     private final Map<UUID, Boolean> wasOnFire = new HashMap<>();
@@ -28,9 +33,11 @@ public final class PanicImprintManager {
     private final Map<UUID, Float> lastHealth = new HashMap<>();
     private final Map<UUID, Float> maximumFall = new HashMap<>();
     private final Map<UUID, Long> recentDamageTicks = new HashMap<>();
+    private final Set<UUID> hydrated = new HashSet<>();
 
-    public PanicImprintManager(RecordingManager recordings) {
+    public PanicImprintManager(RecordingManager recordings, StageManager stageManager) {
         this.recordings = recordings;
+        this.stageManager = stageManager;
     }
 
     public void tick(MinecraftServer server, EchoConfig config, long tick) {
@@ -114,29 +121,37 @@ public final class PanicImprintManager {
         PanicImprint imprint = new PanicImprint(frames,
                 player.getServerWorld().getRegistryKey().getValue().toString(), category, type,
                 tick);
+        hydrate(player.getUuid());
         Deque<PanicImprint> saved = imprints.computeIfAbsent(player.getUuid(), ignored -> new ArrayDeque<>());
         saved.addLast(imprint);
         while (saved.size() > config.panicImprintMaximumSaved()) {
             saved.removeFirst();
         }
         lastCaptureTicks.put(player.getUuid(), tick);
+        stageManager.memory(player.getUuid()).addPanicImprint(PersistentPanicImprint.from(imprint),
+                config.persistentPanicImprintMaximum());
         return true;
     }
 
     public PanicImprint latest(UUID playerUuid) {
+        hydrate(playerUuid);
         Deque<PanicImprint> saved = imprints.get(playerUuid);
         return saved == null ? null : saved.peekLast();
     }
 
     public List<PanicImprint> list(UUID playerUuid) {
+        hydrate(playerUuid);
         Deque<PanicImprint> saved = imprints.get(playerUuid);
         return saved == null ? List.of() : List.copyOf(saved);
     }
 
     public int clear(UUID playerUuid) {
+        hydrate(playerUuid);
         Deque<PanicImprint> removed = imprints.remove(playerUuid);
         lastCaptureTicks.remove(playerUuid);
-        return removed == null ? 0 : removed.size();
+        hydrated.add(playerUuid);
+        int persistent = stageManager.memory(playerUuid).clearPanicImprints();
+        return Math.max(persistent, removed == null ? 0 : removed.size());
     }
 
     public boolean recentlyDamaged(UUID playerUuid, long tick, int withinTicks) {
@@ -151,6 +166,7 @@ public final class PanicImprintManager {
         wasDrowning.remove(playerUuid);
         maximumFall.remove(playerUuid);
         recentDamageTicks.remove(playerUuid);
+        hydrated.remove(playerUuid);
     }
 
     public void clearAll() {
@@ -161,5 +177,20 @@ public final class PanicImprintManager {
         wasDrowning.clear();
         maximumFall.clear();
         recentDamageTicks.clear();
+        hydrated.clear();
+    }
+
+    private void hydrate(UUID playerUuid) {
+        if (!hydrated.add(playerUuid)) {
+            return;
+        }
+        Deque<PanicImprint> saved = imprints.computeIfAbsent(playerUuid, ignored -> new ArrayDeque<>());
+        for (PersistentPanicImprint persistent : stageManager.memory(playerUuid).panicImprints()) {
+            try {
+                saved.addLast(persistent.toRuntime());
+            } catch (RuntimeException ignored) {
+                // The persistent codec already reports malformed entries; keep the remaining imprints usable.
+            }
+        }
     }
 }

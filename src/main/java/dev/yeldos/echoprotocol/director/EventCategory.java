@@ -7,6 +7,7 @@ public enum EventCategory {
     ORIGINAL(EventIntensity.STRONG),
     FALSE_MEMORY(EventIntensity.MODERATE),
     MAJOR_FALSE_MEMORY(EventIntensity.STRONG),
+    CONTRADICTION(EventIntensity.STRONG),
     PANIC_IMPRINT(EventIntensity.STRONG),
     PERIPHERAL(EventIntensity.SUBTLE),
     AUDIO_RESIDUE(EventIntensity.SUBTLE);

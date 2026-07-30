@@ -1,3 +1,58 @@
+# Echo Protocol v0.5.0-beta.1 — The House Remembers
+
+> You were never the only thing being recorded.
+
+This is the first beta. Beta does not mean feature-complete: the bounded persistent format may still evolve, so back up disposable test worlds before trying beta builds.
+
+## Added
+
+- One server-authoritative, versioned `PersistentState` containing bounded per-player beta memory alongside existing Stage progression.
+- A heuristic Room Memory Graph with at most 20 nodes, 48 edges, eight-block local probes, and 256 block checks per observation.
+- Nine 2–4-step Memory Thread templates connecting Audio Residue, Panic Imprints, False Memories, Peripheral Echoes, contradictions, and The Original.
+- Split Memory, Repeated Ending, Wrong Destination, Memory Arrived First, Conflicting Item, Missing Segment, and sequential Conflicting Copies plans.
+- Bounded contamination and decaying observation-profile summaries that adjust weights without changing input, camera, movement, or controls.
+- `SUBTLE`, `STANDARD`, `INTENSE`, and value-preserving `CUSTOM` intensity presets.
+- Operator memory, thread, contradiction, contamination, and preset commands.
+- Seven hidden beta advancements and eight rare target-only memory fragments in English and Russian.
+
+## Improved
+
+- Event Director 3.0 validates safety, locks, grace periods, thread context, and actual spawn success before recording an event.
+- Existing managers now persist compact Panic Imprints, Audio Residue identifiers, and Borrowed Habit summaries without persisting the recording ring buffer.
+- The Original can use a thread room, Panic endpoint, Audio Residue position, or related visual item while retaining its existing local movement controller.
+- Authentic Memory Echoes remain selectable at every contamination tier and reduce contamination when genuinely observed.
+
+## Persistence
+
+- Imports the untouched `data/echo_protocol_state.json` format used by 0.2–0.4.1, preserving valid Stage counters, cooldown delays, and familiar locations.
+- Malformed child entries and players are skipped independently. Unsupported future beta data is logged, retained read-only, and not rewritten.
+- Active threads load paused and resume only through the thread manager. Persistent timestamps use saved world age rather than a process-local counter.
+- Hard per-player bounds are 3 Panic summaries, 16 Audio Residues, 16 habits, 20 rooms, 48 edges, 24 significant events, 8 completed thread types, and 4 False Memory seeds.
+
+## Privacy
+
+- Room graphs, Memory Threads, contamination, observation profiles, and compact summaries never leave the server.
+- With `shared_echoes=false`, the existing server tracking filter remains the entity privacy boundary and sounds, particles, and text are sent only to the target.
+- With sharing enabled, only eligible nearby visuals/audio may be public; personal beta metadata and fragments remain target-only.
+
+## Performance
+
+- No world scan, chunk force-load, flood fill, asynchronous world access, persistent full recording, per-tick graph probe, or per-tick disk dirty mark was added.
+- Thread and contradiction plans are cached and capped; a split event owns at most two temporary Echo entities and cleans them as one group.
+- Room observations run no more often than the configured interval unless caused by an explicit interaction.
+
+## Verification
+
+- Pure-logic tests cover config migration/preservation, persistence codecs, malformed entries, legacy migration, future-version preservation, graph merging/eviction/dimensions, threads, contamination, profiles, contradictions, split cleanup, advancement resources, and privacy filtering.
+- Runtime results and unperformed manual checks are recorded honestly in `docs/VERIFICATION.md`.
+
+## Known Limitations
+
+- Room detection is heuristic and does not perfectly understand architecture or ownership.
+- Complex multi-floor routes, ladders, closed doors, and unloaded routes may cause safe replanning, truncation, fallback, or cancellation.
+- Some atmosphere still uses vanilla sound events. Container contents are never inspected.
+- Memory Threads are short generated plans, not a scripted campaign. Full movement recordings are never persisted.
+
 # Echo Protocol v0.4.1-alpha — Stability Update
 
 ## Fixed

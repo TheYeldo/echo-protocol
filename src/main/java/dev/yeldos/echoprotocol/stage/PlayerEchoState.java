@@ -19,13 +19,25 @@ public final class PlayerEchoState {
     private boolean mimicIndependentActionSeen;
     private boolean activeEvent;
     private final List<FamiliarLocation> familiarLocations = new ArrayList<>();
+    private transient Runnable persistentMutationListener = () -> { };
+
+    public void setPersistentMutationListener(Runnable listener) {
+        persistentMutationListener = listener == null ? () -> { } : listener;
+    }
+
+    public void markPersistentChanged() {
+        persistentMutationListener.run();
+    }
 
     public EchoStage stage() {
         return stage;
     }
 
     public void setStage(EchoStage stage) {
-        this.stage = stage;
+        if (this.stage != stage) {
+            this.stage = stage;
+            markPersistentChanged();
+        }
     }
 
     public long playTicks() {
@@ -46,6 +58,7 @@ public final class PlayerEchoState {
 
     public void setNextEventTick(long nextEventTick) {
         this.nextEventTick = nextEventTick;
+        markPersistentChanged();
     }
 
     public long nextOriginalEventTick() {
@@ -54,6 +67,7 @@ public final class PlayerEchoState {
 
     public void setNextOriginalEventTick(long nextOriginalEventTick) {
         this.nextOriginalEventTick = Math.max(0L, nextOriginalEventTick);
+        markPersistentChanged();
     }
 
     public long lastJoinTick() {
@@ -78,6 +92,7 @@ public final class PlayerEchoState {
 
     public void incrementStageOneEvents() {
         stageOneEvents++;
+        markPersistentChanged();
     }
 
     public void setStageOneEvents(int stageOneEvents) {
@@ -90,6 +105,7 @@ public final class PlayerEchoState {
 
     public void incrementTotalEvents() {
         totalEvents++;
+        markPersistentChanged();
     }
 
     public void setTotalEvents(int totalEvents) {
@@ -126,6 +142,7 @@ public final class PlayerEchoState {
 
     public void incrementOriginalEvents() {
         originalEvents++;
+        markPersistentChanged();
     }
 
     public void setOriginalEvents(int originalEvents) {
@@ -137,7 +154,10 @@ public final class PlayerEchoState {
     }
 
     public void setMimicIndependentActionSeen(boolean mimicIndependentActionSeen) {
-        this.mimicIndependentActionSeen = mimicIndependentActionSeen;
+        if (this.mimicIndependentActionSeen != mimicIndependentActionSeen) {
+            this.mimicIndependentActionSeen = mimicIndependentActionSeen;
+            markPersistentChanged();
+        }
     }
 
     public void incrementEchoEvent(dev.yeldos.echoprotocol.echo.EchoType type) {
@@ -148,6 +168,7 @@ public final class PlayerEchoState {
             case ORIGINAL -> originalEvents++;
             case FALSE_MEMORY -> memoryEvents++;
         }
+        markPersistentChanged();
     }
 
     public boolean activeEvent() {
@@ -160,5 +181,31 @@ public final class PlayerEchoState {
 
     public List<FamiliarLocation> familiarLocations() {
         return familiarLocations;
+    }
+
+    public PlayerEchoStateSnapshot snapshot(long currentTick) {
+        return new PlayerEchoStateSnapshot(stage.id(), playTicks,
+                StageManager.remainingDelay(currentTick, nextEventTick),
+                StageManager.remainingDelay(currentTick, nextOriginalEventTick),
+                stageOneEvents, totalEvents, memoryEvents, corruptedEvents, mimicEvents, originalEvents,
+                mimicIndependentActionSeen,
+                familiarLocations.stream().map(FamiliarLocationSnapshot::from).toList());
+    }
+
+    public void restore(PlayerEchoStateSnapshot snapshot, long currentTick) {
+        this.stage = EchoStage.fromId(snapshot.stage());
+        this.playTicks = snapshot.playTicks();
+        this.nextEventTick = StageManager.restoreDeadline(currentTick, snapshot.nextEventDelay());
+        this.nextOriginalEventTick = StageManager.restoreDeadline(currentTick, snapshot.nextOriginalEventDelay());
+        this.stageOneEvents = snapshot.stageOneEvents();
+        this.totalEvents = snapshot.totalEvents();
+        this.memoryEvents = snapshot.memoryEvents();
+        this.corruptedEvents = snapshot.corruptedEvents();
+        this.mimicEvents = snapshot.mimicEvents();
+        this.originalEvents = snapshot.originalEvents();
+        this.mimicIndependentActionSeen = snapshot.mimicIndependentActionSeen();
+        this.familiarLocations.clear();
+        snapshot.familiarLocations().stream().map(FamiliarLocationSnapshot::toLocation)
+                .forEach(this.familiarLocations::add);
     }
 }

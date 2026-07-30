@@ -1,0 +1,10 @@
+{
+  "parent": "echoprotocol:the_house_remembers",
+  "display": {
+    "icon": { "id": "minecraft:oak_door" },
+    "title": { "translate": "advancements.echoprotocol.it_was_waiting_there.title" },
+    "description": { "translate": "advancements.echoprotocol.it_was_waiting_there.description" },
+    "hidden": true
+  },
+  "criteria": { "trigger": { "trigger": "minecraft:impossible" } }
+}

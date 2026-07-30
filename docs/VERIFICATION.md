@@ -1,72 +1,54 @@
-# Echo Protocol 0.4.1-alpha Verification
+# Echo Protocol 0.5.0-beta.1 verification
 
-Legend: `automatic` means a meaningful assertion in `src/test`; `dedicated` means observed in a real Linux dedicated-server process; `client` and `two-client` require real rendered clients. A build or successful command alone is never treated as gameplay verification.
+Legend: `automated` is a meaningful assertion in `src/test`; `dedicated-server runtime`, `real client`, and `two-client` require those real processes. Source review, mocks, a build, and a one-client launch are never promoted to a stronger label.
 
 ## Subsystem matrix
 
-| Subsystem | Intended observable pipeline | Cleanup/privacy path | Current verification |
-|---|---|---|---|
-| Recording | Sample ordered pose, rotation, movement flags, and held-item snapshots into a bounded history | Disconnect and dimension transition remove history; frames never enter custom packets | automatic: empty, one-frame, ordering, maximum bound |
-| Memory Echo | Select at least two historical frames, translate the complete route to a safe spawn, replay, observe, fade, discard | target tracking unless shared; active lock clears on removal | automatic: segment bounds and route translation; client visual pending |
-| Corrupted Echo | Replay, enter desync, visibly stutter/watch/approach or hide, then fade | bounded state ages and entity removal | source-path audit; client runtime pending |
-| Mimic Echo | Copy current motion through a bounded delay queue, deviate, optionally threaten, disappear | disconnect/dimension cleanup; Peaceful blocks hostile state | source-path audit; client runtime pending |
-| False Memory | Authentic configured prefix followed by at least one observable bounded fabricated deviation | no inventory/world writes; observation grants only after deviation; discard | automatic: prefix bound and observable-deviation classifier; client runtime pending |
-| Panic Imprints | Capture the newest real pre-trigger segment and replay it as harmless frames | bounded oldest-first eviction; clear/disconnect removal | automatic: recent slice and eviction; trigger-hook runtime pending |
-| Peripheral Echo | Choose loaded safe point outside central view, require stable observation, reposition once at most, expire | session/cooldown bounds; targeted entity/effects | automatic: view geometry; client runtime pending |
-| Audio Residue | Capture allow-listed vanilla event identifier, select same-dimension loaded entry, send positioned sound | 24-entry history, session/cooldown limits, target-only packet when private | source-path audit; client audio pending |
-| Borrowed Habits | Real block/item hooks update bounded summaries and influence Original anchor/event/item | no container inspection; session cleanup | source-path audit; gameplay influence pending |
-| Familiar locations | Persist bounded dimension-qualified markers and ignore removed typed blocks | persisted world data; invalid entries skipped | source-path audit; restart gameplay pending |
-| The Original | Execute one of nine distinct bounded action plans with real acceleration, waypoints, observation and fallback | `shouldSave=false`, maximum age, removal clears lock | automatic stuck logic; all nine visual plans pending |
-| Event Director 2.0 | Apply grace/danger/active locks and weighted history-aware selection | failed spawn leaves lock/history untouched; logout cleanup | automatic history/repeat/strong-silence; world suppression runtime pending |
-| Stage/config persistence | Persist progression and remaining cooldown delay across process tick reset | malformed config retained; defaults only in memory | automatic config and deadline migration |
-| Advancements | Grant impossible criteria only from a reachable server gameplay source | one criterion; forced event paths suppress normal grants | automatic JSON/parent/EN/RU contract; gameplay triggers pending |
-| Commands | Permission level 2, validated arguments, result reflects actual start/send/clear | list commands omit frame/private content | source audit; live command matrix pending |
-| Skins/models | Resolve bounded Minecraft skin cache and choose classic/slim player model | real S2C cache-clear request; 64-entry client cache | compile/resource audit; client visual pending |
-| Particles/sounds/accessibility | Targeted effects, positioned sound, master volume and reduced visual/flashing settings | no empty fake sound registrations; bounded cooldown maps | source audit; sensory client verification pending |
-| Dedicated/integrated server | Load common classes without client linkage and run world ticks | lifecycle saves progression and clears session managers | dedicated: final tree reached `Done (1.298s)` and stopped via `stop`; integrated pending |
-| Multiplayer privacy | Server tracker excludes unrelated clients when private; targeted particles/sounds use player packets | observer/target dimension and disconnect cleanup | source audit; two-client packet observation pending |
-| Resource/localization | Load mod metadata, mixin, advancement JSON, EN/RU strings and vanilla sound identifiers | no generated/runtime files in artifact | automatic contract; dedicated and client resource reload succeeded |
-
-## Advancement trigger map
-
-| Advancement | Server trigger source | Required gameplay condition |
+| Subsystem | Verification | Evidence / remaining work |
 |---|---|---|
-| root | `StageManager.grant` | Any genuine child condition is granted |
-| deja_vu | event observation callback | First non-forced Echo actually observed |
-| that_was_me | `MemoryEchoBehavior` | Historical replay active for 10 ticks and looked at |
-| it_saw_me | `CorruptedEchoBehavior` | Watching Corrupted Echo looks back while observed |
-| corrupted_memory | `StageManager.tick` | Stage 2 time/event threshold reached |
-| out_of_sync | `CorruptedEchoBehavior` | Visible desync movement executes |
-| broken_memory | `CorruptedEchoBehavior` | Visible desync movement executes |
-| it_looked_back | Corrupted/Mimic behavior | Independent look-at-player action executes |
-| perfect_copy | `MimicEchoBehavior` | 80 delayed copies execute and player is looking |
-| not_me | `MimicEchoBehavior` | Independent mistake executes |
-| do_not_look_away | `MimicEchoBehavior` | Unobserved safe approach step executes |
-| copy_is_wrong | `MimicEchoBehavior` | Non-forced hostile state reaches its bounded end |
-| familiar_face | event observation callback | Observed Echo has resolvable signed target texture |
-| behind_you | Corrupted/Mimic behavior | Safe unobserved approach step executes |
-| the_original | `StageManager.tick` | All Stage 3 requirements are met |
-| already_home | `OriginalEchoBehavior` | Observed Original uses a bed/home-compatible anchor |
-| my_place | `OriginalEchoBehavior` | Observed Original uses a valid familiar/habit anchor |
-| which_one_is_real | `OriginalEchoBehavior` | Non-forced confrontation reaches disappearance |
-| stop_following_me | `OriginalEchoBehavior` | Non-forced confrontation action executes |
-| that_never_happened | `FalseMemoryBehavior` | Player observes fabricated deviation for 8 ticks |
-| i_remember_it_differently | `FalseMemoryHistory` via behavior | Observed plan conflicts with a recent route signature |
-| you_were_never_there | `FalseMemoryBehavior` | Observed plan enters bounded fabricated route location |
-| almost_lost_everything | `FalseMemoryBehavior` | Observed deviation is based on a Panic Imprint |
-| out_of_the_corner_of_my_eye | `PeripheralEchoBehavior` | Stable observation grace is satisfied |
-| not_my_footsteps | `AudioResidueManager` | Non-forced captured sound packet is actually sent |
+| Legacy migration | automated | Representative 0.2/0.3/0.4.1 state, familiar locations, malformed-player isolation |
+| Beta NBT persistence | automated | Round-trip of graph/thread/profile/contamination, malformed child isolation, future version read-only preservation |
+| Room graph | automated | Merge, dimension separation, edge reinforcement, node/edge eviction; live interaction generation still needs client runtime |
+| Memory Threads | automated | Seeded 2–4-step plans, feature adaptation/cancellation, failed event non-advance, observed advance, completion-history bound, paused codec restart |
+| Contradictions | automated | Every seeded variant is bounded/deterministic; Split group clears two members exactly once; visuals still need real client |
+| Contamination | automated | Growth, anti-farming, decay interval, clamping, authentic non-zero weight, authentic recovery |
+| Observation Profile | automated | Minimum samples, style confidence, decay, bounded counters; gameplay presentation still needs client runtime |
+| Presets/config | automated | Defaults, clamps, old values, malformed-file preservation, unknown fields, distinct runtime multipliers |
+| Advancements/localization | automated | JSON parent/criterion contract and non-empty English/Russian translations |
+| Privacy recipients | automated; source audit | Target-only vs shared visual and always-private metadata rules; server tracking mixin and targeted sound/particle/text paths inspected |
+| Event Director 3.0 | automated for pure selectors; source audit | Thread-first success/failure semantics and active lock audited; world safety gates need runtime matrix |
+| The Original context | source audit | Uses loaded room/Panic/audio anchors and existing movement controller; client action-plan verification pending |
+| Disconnect/death/dimension cleanup | source audit | UUID-scoped managers, thread pause, recording/entity/in-flight cleanup; runtime scenarios pending |
+| Dedicated server | dedicated-server runtime | Final-code beta reached `Done (1.459s)` and stopped cleanly with `stop`; a later Mojang public-key request timed out without stopping the server |
+| Linux client | real client (partial) | Java 21 client initialized the renderer, OpenAL, atlases, and Echo Protocol resources without a crash; integrated-world gameplay was not run |
+| Two-client privacy | not fully verified | Requires two real connected clients under both sharing settings |
+| Persistence restart sequence | not fully verified | Automated codecs are complete; real 0.4.1 → beta disposable-world sequence remains separate |
+
+## Beta advancement trigger map
+
+| Advancement | Normal gameplay trigger |
+|---|---|
+| The House Remembers | First completed Memory Thread |
+| Two Different Endings | Stable direct observation of a non-admin Split Memory |
+| It Was Waiting There | Stable observation of Memory Arrived First |
+| A Pattern Emerges | Third connected observed step of one normal thread |
+| Not Forgotten | First accepted observation in a thread loaded from a previous server session |
+| This Is Not How It Happened | Crossing into `DISTORTED` through normal thread outcomes |
+| You Led It Here | The Original uses a thread room with a prior followed False Memory event |
+
+Admin-created threads, admin advances, and forced contradictions carry `awardsProgress=false` and do not grant these by default.
 
 ## Runtime checklist
 
-- Dedicated server reaches `Done` and is stopped with `stop`: verified; Fabric Loader 0.16.14 loaded Echo Protocol 0.4.1-alpha and Fabric API 0.116.13+1.21.1, then shut down cleanly.
-- Linux client reaches title screen without crash: launch verified through renderer/resource/OpenAL initialization; the OS session was locked, so the title screen itself was not visually inspected.
-- Integrated single-player world: pending.
-- Dedicated-server connection: pending.
-- All debug commands and all nine Original kinds: pending.
-- 20 TPS and reduced tick rate: pending.
-- Peaceful and non-Peaceful; Creative, Survival, Hardcore copy: pending.
-- Dimension, logout, death/respawn cleanup: pending.
-- Two simultaneous clients with private/public tracking comparison: not verified. A quick-play connection attempt produced zero joined players, so it is not counted as a multiplayer result.
+- `./gradlew clean test`: passed, 49 tests, 0 failures/errors/skips.
+- `./gradlew clean build`: passed; remapped release and sources JARs generated.
+- Dedicated server `Done` / clean `stop`: passed on the current beta runtime.
+- Linux client common/resource initialization: passed on the current beta runtime; the process was closed after resource loading.
+- Integrated world and dedicated connection: not verified. A quick-play connection attempt produced no joined player on the server and is not counted as a pass.
+- Real 0.4.1 migration plus beta restart: pending.
+- Normal and reduced TPS, Peaceful/Survival/Creative/Hardcore copy, Overworld/Nether, logout/death/respawn: pending.
+- Two real clients, `shared_echoes=false` and `true`: not verified.
+- Idle dedicated-server sampling (no connected players): at target 20 TPS, mean 4.1 ms/tick, P50 1.6 ms, P95 25.7 ms, P99 66.4 ms over 100 ticks; at target 10 TPS, mean 1.0 ms/tick, P50 1.0 ms, P95 1.4 ms, P99 1.8 ms over 100 ticks. This is a startup/idle observation, not a measurement of beta event load.
+- Classic/slim skins and subjective peripheral/contradiction visuals: manual visual tests required.
 
-Disposable worlds only. No runtime check may be promoted from “pending” based on build output alone.
+Disposable worlds only. Unperformed checks remain pending even when compilation and pure tests pass.

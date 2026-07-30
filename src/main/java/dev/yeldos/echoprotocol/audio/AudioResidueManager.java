@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class AudioResidueManager {
     private static final int MAX_CAPTURED_PER_PLAYER = 24;
@@ -27,6 +29,9 @@ public final class AudioResidueManager {
     private final Map<UUID, Deque<AudioResidue>> residues = new HashMap<>();
     private final Map<UUID, Integer> sessionPlays = new HashMap<>();
     private final Map<UUID, Long> lastPlayTicks = new HashMap<>();
+    private final Map<UUID, Long> lastPersistentCaptureTicks = new HashMap<>();
+    private final Map<UUID, Vec3d> lastPlaybackPositions = new HashMap<>();
+    private final Set<UUID> hydrated = new HashSet<>();
 
     public AudioResidueManager(StageManager stageManager) {
         this.stageManager = stageManager;
@@ -41,11 +46,20 @@ public final class AudioResidueManager {
         if (id == null || !Registries.SOUND_EVENT.containsId(id) || !isSafeSound(id)) {
             return;
         }
+        hydrate(player.getUuid());
         Deque<AudioResidue> history = residues.computeIfAbsent(player.getUuid(), ignored -> new ArrayDeque<>());
         history.addLast(new AudioResidue(id, event,
                 player.getServerWorld().getRegistryKey().getValue().toString(), position, volume, pitch, tick));
         while (history.size() > MAX_CAPTURED_PER_PLAYER) {
             history.removeFirst();
+        }
+        long persistenceInterval = event == AudioResidueEvent.FOOTSTEP ? 20L * 60L : 20L * 10L;
+        long previousPersistentCapture = lastPersistentCaptureTicks.getOrDefault(
+                player.getUuid(), Long.MIN_VALUE / 2);
+        if (tick - previousPersistentCapture >= persistenceInterval) {
+            stageManager.memory(player.getUuid()).addAudioResidue(history.peekLast(),
+                    config.persistentAudioResidueMaximum());
+            lastPersistentCaptureTicks.put(player.getUuid(), tick);
         }
     }
 
@@ -84,6 +98,7 @@ public final class AudioResidueManager {
         }
         sessionPlays.merge(target.getUuid(), 1, Integer::sum);
         lastPlayTicks.put(target.getUuid(), tick);
+        lastPlaybackPositions.put(target.getUuid(), pos);
         if (awardsProgress) {
             stageManager.grant(target, "not_my_footsteps");
         }
@@ -91,12 +106,17 @@ public final class AudioResidueManager {
     }
 
     public List<AudioResidue> list(UUID playerUuid) {
+        hydrate(playerUuid);
         Deque<AudioResidue> history = residues.get(playerUuid);
         return history == null ? List.of() : List.copyOf(history);
     }
 
     public int sessionPlays(UUID playerUuid) {
         return sessionPlays.getOrDefault(playerUuid, 0);
+    }
+
+    public Optional<Vec3d> lastPlaybackPosition(UUID playerUuid) {
+        return Optional.ofNullable(lastPlaybackPositions.get(playerUuid));
     }
 
     public boolean isEligible(ServerPlayerEntity target, EchoConfig config, long tick) {
@@ -111,15 +131,22 @@ public final class AudioResidueManager {
         residues.remove(playerUuid);
         sessionPlays.remove(playerUuid);
         lastPlayTicks.remove(playerUuid);
+        lastPersistentCaptureTicks.remove(playerUuid);
+        lastPlaybackPositions.remove(playerUuid);
+        hydrated.remove(playerUuid);
     }
 
     public void clearAll() {
         residues.clear();
         sessionPlays.clear();
         lastPlayTicks.clear();
+        lastPersistentCaptureTicks.clear();
+        lastPlaybackPositions.clear();
+        hydrated.clear();
     }
 
     private AudioResidue latestInDimension(ServerPlayerEntity target) {
+        hydrate(target.getUuid());
         Deque<AudioResidue> history = residues.get(target.getUuid());
         if (history == null) {
             return null;
@@ -148,5 +175,27 @@ public final class AudioResidueManager {
             EchoProtocol.LOGGER.debug("Audio Residue rejected for {}: {}", target.getUuid(), reason);
         }
         return false;
+    }
+
+    public int clear(UUID playerUuid) {
+        hydrate(playerUuid);
+        Deque<AudioResidue> removed = residues.remove(playerUuid);
+        lastPersistentCaptureTicks.remove(playerUuid);
+        hydrated.add(playerUuid);
+        int persistent = stageManager.memory(playerUuid).clearAudioResidues();
+        return Math.max(persistent, removed == null ? 0 : removed.size());
+    }
+
+    private void hydrate(UUID playerUuid) {
+        if (!hydrated.add(playerUuid)) {
+            return;
+        }
+        Deque<AudioResidue> history = residues.computeIfAbsent(playerUuid, ignored -> new ArrayDeque<>());
+        for (AudioResidue residue : stageManager.memory(playerUuid).audioResidues()) {
+            history.addLast(residue);
+        }
+        while (history.size() > MAX_CAPTURED_PER_PLAYER) {
+            history.removeFirst();
+        }
     }
 }

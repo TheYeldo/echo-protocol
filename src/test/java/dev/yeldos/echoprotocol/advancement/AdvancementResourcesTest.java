@@ -19,7 +19,8 @@ class AdvancementResourcesTest {
             "copy_is_wrong", "familiar_face", "behind_you", "the_original", "already_home", "my_place",
             "which_one_is_real", "stop_following_me", "that_never_happened", "i_remember_it_differently",
             "you_were_never_there", "almost_lost_everything", "out_of_the_corner_of_my_eye",
-            "not_my_footsteps");
+            "not_my_footsteps", "the_house_remembers", "two_different_endings", "it_was_waiting_there",
+            "a_pattern_emerges", "not_forgotten", "this_is_not_how_it_happened", "you_led_it_here");
 
     @Test
     void everyAdvancementHasAValidImpossibleCriterionParentAndBothTranslations() {

@@ -1,20 +1,15 @@
 package dev.yeldos.echoprotocol.stage;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.config.EchoConfig;
+import dev.yeldos.echoprotocol.config.EchoPresetManager;
+import dev.yeldos.echoprotocol.memory.PersistentEchoMemory;
+import dev.yeldos.echoprotocol.memory.PersistentMemoryManager;
+import dev.yeldos.echoprotocol.memory.PlayerMemoryState;
 import net.minecraft.advancement.AdvancementEntry;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.WorldSavePath;
-
-import java.io.IOException;
-import java.io.Reader;
-import java.io.Writer;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -23,9 +18,8 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class StageManager {
-    private static final int DATA_VERSION = 3;
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Map<UUID, PlayerEchoState> states = new HashMap<>();
+    private final PersistentMemoryManager persistentMemory = new PersistentMemoryManager();
     private long tick;
 
     public void tick(MinecraftServer server, EchoConfig config) {
@@ -57,17 +51,35 @@ public final class StageManager {
     }
 
     public PlayerEchoState state(UUID playerUuid) {
-        return states.computeIfAbsent(playerUuid, ignored -> new PlayerEchoState());
+        return states.computeIfAbsent(playerUuid, uuid -> {
+            PlayerEchoState state = new PlayerEchoState();
+            if (persistentMemory.loaded()) {
+                PersistentEchoMemory.PlayerRecord record = persistentMemory.getOrCreate(uuid, EchoProtocol.config());
+                state.restore(record.stage(), tick);
+                bindPersistentState(uuid, state);
+            }
+            return state;
+        });
+    }
+
+    public PlayerMemoryState memory(UUID playerUuid) {
+        return persistentMemory.getOrCreate(playerUuid, EchoProtocol.config()).memory();
     }
 
     public void scheduleNextEvent(PlayerEchoState state, EchoConfig config) {
-        int seconds = ThreadLocalRandom.current().nextInt(config.minimumEventIntervalSeconds(), config.maximumEventIntervalSeconds() + 1);
+        int minimum = EchoPresetManager.eventIntervalSeconds(config.minimumEventIntervalSeconds(), config);
+        int maximum = Math.max(minimum,
+                EchoPresetManager.eventIntervalSeconds(config.maximumEventIntervalSeconds(), config));
+        int seconds = ThreadLocalRandom.current().nextInt(minimum, maximum + 1);
         state.setNextEventTick(tick + seconds * 20L);
     }
 
     public void scheduleNextOriginalEvent(PlayerEchoState state, EchoConfig config) {
-        int minutes = ThreadLocalRandom.current().nextInt(config.originalMinimumEventIntervalMinutes(),
-                config.originalMaximumEventIntervalMinutes() + 1);
+        float activity = EchoPresetManager.values(config).originalFinaleWeightMultiplier();
+        int minimum = Math.max(5, Math.round(config.originalMinimumEventIntervalMinutes() / activity));
+        int maximum = Math.max(minimum,
+                Math.round(config.originalMaximumEventIntervalMinutes() / activity));
+        int minutes = ThreadLocalRandom.current().nextInt(minimum, maximum + 1);
         state.setNextOriginalEventTick(tick + minutes * 60L * 20L);
     }
 
@@ -85,6 +97,9 @@ public final class StageManager {
 
     public void clear(UUID playerUuid) {
         states.remove(playerUuid);
+        if (persistentMemory.loaded()) {
+            persistentMemory.remove(playerUuid);
+        }
     }
 
     public void recordFamiliarLocation(ServerPlayerEntity player, FamiliarLocationType type, BlockPos pos, EchoConfig config) {
@@ -96,11 +111,13 @@ public final class StageManager {
         for (FamiliarLocation location : state.familiarLocations()) {
             if (location.canMerge(type, dimension, pos)) {
                 location.markSeen(tick);
+                state.markPersistentChanged();
                 return;
             }
         }
         state.familiarLocations().add(new FamiliarLocation(type, dimension, pos.toImmutable(), 1, tick));
         trimFamiliarLocations(state, config);
+        state.markPersistentChanged();
     }
 
     public int addCurrentFamiliarLocation(ServerPlayerEntity player, EchoConfig config) {
@@ -112,6 +129,9 @@ public final class StageManager {
         PlayerEchoState state = state(player.getUuid());
         int count = state.familiarLocations().size();
         state.familiarLocations().clear();
+        if (count > 0) {
+            state.markPersistentChanged();
+        }
         return count;
     }
 
@@ -136,81 +156,19 @@ public final class StageManager {
     public void load(MinecraftServer server) {
         states.clear();
         tick = 0L;
-        Path path = dataPath(server);
-        if (!Files.exists(path)) {
-            return;
-        }
-        try (Reader reader = Files.newBufferedReader(path)) {
-            SaveData data = GSON.fromJson(reader, SaveData.class);
-            if (data == null || data.players == null) {
-                return;
-            }
-            for (Map.Entry<String, SavedPlayer> entry : data.players.entrySet()) {
-                UUID uuid = UUID.fromString(entry.getKey());
-                SavedPlayer saved = entry.getValue();
-                PlayerEchoState state = new PlayerEchoState();
-                state.setStage(EchoStage.fromId(saved.stage));
-                state.setPlayTicks(saved.playTicks);
-                if (data.dataVersion >= DATA_VERSION) {
-                    state.setNextEventTick(restoreDeadline(tick, saved.nextEventDelay));
-                    state.setNextOriginalEventTick(restoreDeadline(tick, saved.nextOriginalEventDelay));
-                }
-                state.setStageOneEvents(saved.stageOneEvents);
-                state.setTotalEvents(saved.totalEvents);
-                state.setMemoryEvents(saved.memoryEvents);
-                state.setCorruptedEvents(saved.corruptedEvents);
-                state.setMimicEvents(saved.mimicEvents);
-                state.setOriginalEvents(saved.originalEvents);
-                state.setMimicIndependentActionSeen(saved.mimicIndependentActionSeen);
-                if (saved.familiarLocations != null) {
-                    for (SavedFamiliarLocation savedLocation : saved.familiarLocations) {
-                        FamiliarLocation location = savedLocation.toLocation();
-                        if (location != null) {
-                            state.familiarLocations().add(location);
-                        }
-                    }
-                }
-                states.put(uuid, state);
-            }
-        } catch (RuntimeException | IOException exception) {
-            EchoProtocol.LOGGER.warn("Failed to load Echo Protocol world data; starting with empty state.", exception);
+        persistentMemory.load(server, EchoProtocol.config());
+        for (Map.Entry<UUID, PersistentEchoMemory.PlayerRecord> entry : persistentMemory.records().entrySet()) {
+            PlayerEchoState state = new PlayerEchoState();
+            state.restore(entry.getValue().stage(), tick);
+            bindPersistentState(entry.getKey(), state);
+            states.put(entry.getKey(), state);
         }
     }
 
     public void save(MinecraftServer server) {
-        Path path = dataPath(server);
-        SaveData data = new SaveData();
-        data.dataVersion = DATA_VERSION;
-        data.players = new HashMap<>();
         for (Map.Entry<UUID, PlayerEchoState> entry : states.entrySet()) {
-            PlayerEchoState state = entry.getValue();
-            SavedPlayer saved = new SavedPlayer();
-            saved.stage = state.stage().id();
-            saved.playTicks = state.playTicks();
-            saved.nextEventDelay = remainingDelay(tick, state.nextEventTick());
-            saved.nextOriginalEventDelay = remainingDelay(tick, state.nextOriginalEventTick());
-            saved.stageOneEvents = state.stageOneEvents();
-            saved.totalEvents = state.totalEvents();
-            saved.memoryEvents = state.memoryEvents();
-            saved.corruptedEvents = state.corruptedEvents();
-            saved.mimicEvents = state.mimicEvents();
-            saved.originalEvents = state.originalEvents();
-            saved.mimicIndependentActionSeen = state.mimicIndependentActionSeen();
-            saved.familiarLocations = state.familiarLocations().stream().map(SavedFamiliarLocation::from).toList();
-            data.players.put(entry.getKey().toString(), saved);
+            persistentMemory.updateStage(entry.getKey(), entry.getValue().snapshot(tick));
         }
-        try {
-            Files.createDirectories(path.getParent());
-            try (Writer writer = Files.newBufferedWriter(path)) {
-                GSON.toJson(data, writer);
-            }
-        } catch (IOException exception) {
-            EchoProtocol.LOGGER.warn("Failed to save Echo Protocol world data.", exception);
-        }
-    }
-
-    private static Path dataPath(MinecraftServer server) {
-        return server.getSavePath(WorldSavePath.ROOT).resolve("data").resolve("echo_protocol_state.json");
     }
 
     static long remainingDelay(long currentTick, long deadline) {
@@ -244,54 +202,7 @@ public final class StageManager {
         }
     }
 
-    private static final class SaveData {
-        int dataVersion;
-        Map<String, SavedPlayer> players;
-    }
-
-    private static final class SavedPlayer {
-        int stage;
-        long playTicks;
-        long nextEventDelay;
-        long nextOriginalEventDelay;
-        int stageOneEvents;
-        int totalEvents;
-        int memoryEvents;
-        int corruptedEvents;
-        int mimicEvents;
-        int originalEvents;
-        boolean mimicIndependentActionSeen;
-        List<SavedFamiliarLocation> familiarLocations;
-    }
-
-    private static final class SavedFamiliarLocation {
-        String type;
-        String dimension;
-        int x;
-        int y;
-        int z;
-        int visits;
-        long lastSeenTick;
-
-        static SavedFamiliarLocation from(FamiliarLocation location) {
-            SavedFamiliarLocation saved = new SavedFamiliarLocation();
-            saved.type = location.type().name();
-            saved.dimension = location.dimension();
-            BlockPos pos = location.pos();
-            saved.x = pos.getX();
-            saved.y = pos.getY();
-            saved.z = pos.getZ();
-            saved.visits = location.visits();
-            saved.lastSeenTick = location.lastSeenTick();
-            return saved;
-        }
-
-        FamiliarLocation toLocation() {
-            try {
-                return new FamiliarLocation(FamiliarLocationType.valueOf(type), dimension, new BlockPos(x, y, z), visits, lastSeenTick);
-            } catch (RuntimeException exception) {
-                return null;
-            }
-        }
+    private void bindPersistentState(UUID uuid, PlayerEchoState state) {
+        state.setPersistentMutationListener(() -> persistentMemory.updateStage(uuid, state.snapshot(tick)));
     }
 }

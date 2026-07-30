@@ -1,0 +1,10 @@
+{
+  "parent": "echoprotocol:the_house_remembers",
+  "display": {
+    "icon": { "id": "minecraft:clock" },
+    "title": { "translate": "advancements.echoprotocol.not_forgotten.title" },
+    "description": { "translate": "advancements.echoprotocol.not_forgotten.description" },
+    "hidden": true
+  },
+  "criteria": { "trigger": { "trigger": "minecraft:impossible" } }
+}

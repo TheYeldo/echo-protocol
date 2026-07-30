@@ -1,0 +1,10 @@
+{
+  "parent": "echoprotocol:the_house_remembers",
+  "display": {
+    "icon": { "id": "minecraft:recovery_compass" },
+    "title": { "translate": "advancements.echoprotocol.two_different_endings.title" },
+    "description": { "translate": "advancements.echoprotocol.two_different_endings.description" },
+    "hidden": true
+  },
+  "criteria": { "trigger": { "trigger": "minecraft:impossible" } }
+}

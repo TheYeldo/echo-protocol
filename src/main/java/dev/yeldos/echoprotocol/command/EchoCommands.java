@@ -1,9 +1,13 @@
 package dev.yeldos.echoprotocol.command;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.config.EchoConfig;
+import dev.yeldos.echoprotocol.config.EchoIntensityPreset;
+import dev.yeldos.echoprotocol.contradiction.ContradictionVariant;
 import dev.yeldos.echoprotocol.echo.EchoEventDirector;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import dev.yeldos.echoprotocol.echo.OriginalEventKind;
@@ -13,11 +17,13 @@ import dev.yeldos.echoprotocol.recording.RecordingManager;
 import dev.yeldos.echoprotocol.stage.EchoStage;
 import dev.yeldos.echoprotocol.stage.FamiliarLocation;
 import dev.yeldos.echoprotocol.stage.StageManager;
+import dev.yeldos.echoprotocol.thread.MemoryThreadType;
 import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
@@ -312,6 +318,11 @@ public final class EchoCommands {
                                                     player.getName().getString()), true);
                                             return 1;
                                         })))
+                        .then(memoryCommands(stageManager, director))
+                        .then(threadCommands(director))
+                        .then(contradictionCommands(director))
+                        .then(contaminationCommands(stageManager))
+                        .then(presetCommands())
                         .then(CommandManager.literal("reload")
                                 .executes(context -> {
                                     EchoProtocol.reloadConfig();
@@ -332,6 +343,288 @@ public final class EchoCommands {
                                             return 1;
                                         })))
         ));
+    }
+
+    private static LiteralArgumentBuilder<ServerCommandSource> memoryCommands(StageManager stageManager,
+                                                                               EchoEventDirector director) {
+        return CommandManager.literal("memory")
+                .then(CommandManager.literal("status")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> memoryStatus(context.getSource(),
+                                        EntityArgumentType.getPlayer(context, "player"), stageManager, director))))
+                .then(CommandManager.literal("rooms")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> memoryRooms(context.getSource(),
+                                        EntityArgumentType.getPlayer(context, "player"), stageManager))))
+                .then(CommandManager.literal("threads")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> {
+                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                    context.getSource().sendFeedback(() -> Text.literal(player.getName().getString()
+                                            + ": " + director.threadStatus(player.getUuid())), false);
+                                    return 1;
+                                })))
+                .then(CommandManager.literal("contamination")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> contaminationStatus(context.getSource(),
+                                        EntityArgumentType.getPlayer(context, "player"), stageManager))))
+                .then(CommandManager.literal("profile")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> profileStatus(context.getSource(),
+                                        EntityArgumentType.getPlayer(context, "player"), stageManager))))
+                .then(CommandManager.literal("validate")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> memoryValidate(context.getSource(),
+                                        EntityArgumentType.getPlayer(context, "player"), stageManager))))
+                .then(CommandManager.literal("clear-thread")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> {
+                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                    if (!director.cancelThread(player.getUuid())) {
+                                        context.getSource().sendError(Text.literal("No active Memory Thread for "
+                                                + player.getName().getString()));
+                                        return 0;
+                                    }
+                                    context.getSource().sendFeedback(() -> Text.literal("Cleared Memory Thread for "
+                                            + player.getName().getString()), true);
+                                    return 1;
+                                })))
+                .then(CommandManager.literal("clear-profile")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> {
+                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                    director.clearObservationProfile(player.getUuid());
+                                    context.getSource().sendFeedback(() -> Text.literal("Cleared observation profile for "
+                                            + player.getName().getString()), true);
+                                    return 1;
+                                })))
+                .then(CommandManager.literal("reset-beta-data")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> {
+                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                    director.resetBetaData(player, EchoProtocol.config());
+                                    context.getSource().sendFeedback(() -> Text.literal("Reset bounded beta data for "
+                                            + player.getName().getString() + "; Stage and familiar locations preserved"), true);
+                                    return 1;
+                                })));
+    }
+
+    private static LiteralArgumentBuilder<ServerCommandSource> threadCommands(EchoEventDirector director) {
+        return CommandManager.literal("thread")
+                .then(CommandManager.literal("start")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .then(CommandManager.argument("type", StringArgumentType.word())
+                                        .suggests((context, builder) -> net.minecraft.command.CommandSource.suggestMatching(
+                                                java.util.Arrays.stream(MemoryThreadType.values())
+                                                        .map(MemoryThreadType::commandName), builder))
+                                        .executes(context -> {
+                                            ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                            try {
+                                                MemoryThreadType type = MemoryThreadType.fromCommand(
+                                                        StringArgumentType.getString(context, "type"));
+                                                if (!director.startThread(player, type, EchoProtocol.config(), false)) {
+                                                    context.getSource().sendError(Text.literal(
+                                                            "Thread unavailable: active thread, disabled feature, or no valid room/context"));
+                                                    return 0;
+                                                }
+                                                context.getSource().sendFeedback(() -> Text.literal("Started admin Memory Thread "
+                                                        + type.commandName() + " for " + player.getName().getString()), true);
+                                                return 1;
+                                            } catch (IllegalArgumentException exception) {
+                                                context.getSource().sendError(Text.literal("Unknown Memory Thread type"));
+                                                return 0;
+                                            }
+                                        }))))
+                .then(CommandManager.literal("advance")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> {
+                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                    if (!director.advanceThreadForAdmin(player, EchoProtocol.config())) {
+                                        context.getSource().sendError(Text.literal("No active eligible thread step"));
+                                        return 0;
+                                    }
+                                    context.getSource().sendFeedback(() -> Text.literal("Advanced admin thread for "
+                                            + player.getName().getString()), true);
+                                    return 1;
+                                })))
+                .then(CommandManager.literal("cancel")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> {
+                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                    if (!director.cancelThread(player.getUuid())) {
+                                        context.getSource().sendError(Text.literal("No active Memory Thread"));
+                                        return 0;
+                                    }
+                                    context.getSource().sendFeedback(() -> Text.literal("Cancelled thread for "
+                                            + player.getName().getString()), true);
+                                    return 1;
+                                })))
+                .then(CommandManager.literal("status")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> {
+                                    ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                    context.getSource().sendFeedback(() -> Text.literal(player.getName().getString()
+                                            + ": " + director.threadStatus(player.getUuid())), false);
+                                    return 1;
+                                })));
+    }
+
+    private static LiteralArgumentBuilder<ServerCommandSource> contradictionCommands(EchoEventDirector director) {
+        return CommandManager.literal("contradiction")
+                .then(CommandManager.literal("spawn")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .then(CommandManager.argument("variant", StringArgumentType.word())
+                                        .suggests((context, builder) -> net.minecraft.command.CommandSource.suggestMatching(
+                                                java.util.stream.Stream.of(ContradictionVariant.SPLIT_MEMORY,
+                                                        ContradictionVariant.REPEATED_ENDING,
+                                                        ContradictionVariant.WRONG_DESTINATION,
+                                                        ContradictionVariant.MEMORY_ARRIVED_FIRST,
+                                                        ContradictionVariant.CONFLICTING_ITEM,
+                                                        ContradictionVariant.MISSING_SEGMENT)
+                                                        .map(ContradictionVariant::commandName), builder))
+                                        .executes(context -> {
+                                            ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                            try {
+                                                ContradictionVariant variant = ContradictionVariant.fromCommand(
+                                                        StringArgumentType.getString(context, "variant"));
+                                                if (!director.spawnContradiction(player, variant,
+                                                        EchoProtocol.config(), true)) {
+                                                    context.getSource().sendError(Text.literal(
+                                                            "Contradiction unavailable: feature disabled, no recording/room, active event, or no safe loaded spawn"));
+                                                    return 0;
+                                                }
+                                                context.getSource().sendFeedback(() -> Text.literal("Started "
+                                                        + variant.commandName() + " for " + player.getName().getString()), true);
+                                                return 1;
+                                            } catch (IllegalArgumentException exception) {
+                                                context.getSource().sendError(Text.literal("Unknown contradiction variant"));
+                                                return 0;
+                                            }
+                                        }))));
+    }
+
+    private static LiteralArgumentBuilder<ServerCommandSource> contaminationCommands(StageManager stageManager) {
+        return CommandManager.literal("contamination")
+                .then(CommandManager.literal("get")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> contaminationStatus(context.getSource(),
+                                        EntityArgumentType.getPlayer(context, "player"), stageManager))))
+                .then(CommandManager.literal("set")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .then(CommandManager.argument("value", FloatArgumentType.floatArg(0.0F, 1.0F))
+                                        .executes(context -> setContamination(context.getSource(),
+                                                EntityArgumentType.getPlayer(context, "player"), stageManager,
+                                                FloatArgumentType.getFloat(context, "value"))))))
+                .then(CommandManager.literal("add")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .then(CommandManager.argument("amount", FloatArgumentType.floatArg(-1.0F, 1.0F))
+                                        .executes(context -> {
+                                            ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
+                                            float current = stageManager.memory(player.getUuid()).contamination().value();
+                                            return setContamination(context.getSource(), player, stageManager,
+                                                    current + FloatArgumentType.getFloat(context, "amount"));
+                                        }))))
+                .then(CommandManager.literal("reset")
+                        .then(CommandManager.argument("player", EntityArgumentType.player())
+                                .executes(context -> setContamination(context.getSource(),
+                                        EntityArgumentType.getPlayer(context, "player"), stageManager,
+                                        EchoProtocol.config().memoryContaminationInitial()))));
+    }
+
+    private static LiteralArgumentBuilder<ServerCommandSource> presetCommands() {
+        LiteralArgumentBuilder<ServerCommandSource> root = CommandManager.literal("preset");
+        for (EchoIntensityPreset preset : EchoIntensityPreset.values()) {
+            root.then(CommandManager.literal(preset.commandName()).executes(context -> {
+                EchoConfig updated = EchoProtocol.config().withIntensityPreset(preset);
+                EchoProtocol.applyConfig(updated);
+                context.getSource().sendFeedback(() -> Text.literal("Echo Protocol preset: "
+                        + updated.intensityPreset().commandName()), true);
+                return 1;
+            }));
+        }
+        return root.then(CommandManager.literal("status").executes(context -> {
+            EchoIntensityPreset preset = EchoProtocol.config().intensityPreset();
+            context.getSource().sendFeedback(() -> Text.literal("Echo Protocol preset: "
+                    + preset.commandName() + (preset == EchoIntensityPreset.CUSTOM
+                    ? " (current values preserved)" : " (use custom after manual tuning)")), false);
+            return 1;
+        }));
+    }
+
+    private static int memoryStatus(ServerCommandSource source, ServerPlayerEntity player,
+                                    StageManager stageManager, EchoEventDirector director) {
+        var memory = stageManager.memory(player.getUuid());
+        long persistentNow = Math.max(0L, source.getServer().getOverworld().getTime());
+        long strongAge = memory.lastStrongEventTick() <= 0L ? -1L
+                : Math.max(0L, persistentNow - memory.lastStrongEventTick()) / 20L;
+        source.sendFeedback(() -> Text.literal(player.getName().getString() + ": schema=" + memory.schemaVersion()
+                + ", rooms=" + memory.roomGraph().nodes().size() + "/" + memory.roomGraph().edges().size()
+                + ", thread=" + director.threadStatus(player.getUuid())
+                + ", contamination=" + String.format(Locale.ROOT, "%.3f", memory.contamination().value())
+                + "/" + memory.contamination().tier().name().toLowerCase(Locale.ROOT)
+                + ", profile=" + memory.observationProfile().style(EchoProtocol.config().observationProfileMinimumSamples())
+                        .name().toLowerCase(Locale.ROOT)
+                + ", panic=" + memory.panicImprints().size() + ", audio=" + memory.audioResidues().size()
+                + ", events=" + memory.significantEvents().size() + ", lastStrongAgeSeconds=" + strongAge
+                + ", preset=" + EchoProtocol.config().intensityPreset().commandName()
+                + ", validation=" + (memory.validate().isEmpty() ? "ok" : "errors")), false);
+        return 1;
+    }
+
+    private static int memoryRooms(ServerCommandSource source, ServerPlayerEntity player, StageManager stageManager) {
+        var graph = stageManager.memory(player.getUuid()).roomGraph();
+        String preview = graph.nodes().stream().limit(20)
+                .map(room -> room.id() + ":" + room.type().name().toLowerCase(Locale.ROOT) + "@"
+                        + room.dimension() + "/" + room.center().getX() + "," + room.center().getY() + ","
+                        + room.center().getZ() + " c=" + String.format(Locale.ROOT, "%.2f", room.confidence()))
+                .collect(Collectors.joining("; "));
+        source.sendFeedback(() -> Text.literal(player.getName().getString() + ": nodes=" + graph.nodes().size()
+                + ", edges=" + graph.edges().size() + (preview.isBlank() ? "" : "; " + preview)), false);
+        return 1;
+    }
+
+    private static int contaminationStatus(ServerCommandSource source, ServerPlayerEntity player,
+                                           StageManager stageManager) {
+        var contamination = stageManager.memory(player.getUuid()).contamination();
+        source.sendFeedback(() -> Text.literal(player.getName().getString() + ": contamination="
+                + String.format(Locale.ROOT, "%.3f", contamination.value()) + ", tier="
+                + contamination.tier().name().toLowerCase(Locale.ROOT)), false);
+        return 1;
+    }
+
+    private static int profileStatus(ServerCommandSource source, ServerPlayerEntity player,
+                                     StageManager stageManager) {
+        var profile = stageManager.memory(player.getUuid()).observationProfile();
+        int minimum = EchoProtocol.config().observationProfileMinimumSamples();
+        source.sendFeedback(() -> Text.literal(player.getName().getString() + ": style="
+                + profile.style(minimum).name().toLowerCase(Locale.ROOT) + ", confidence="
+                + String.format(Locale.ROOT, "%.2f", profile.confidence(minimum)) + ", samples="
+                + profile.samples() + ", preferredDistance="
+                + String.format(Locale.ROOT, "%.1f", profile.preferredDistance())), false);
+        return 1;
+    }
+
+    private static int memoryValidate(ServerCommandSource source, ServerPlayerEntity player,
+                                      StageManager stageManager) {
+        List<String> errors = stageManager.memory(player.getUuid()).validate();
+        if (errors.isEmpty()) {
+            source.sendFeedback(() -> Text.literal(player.getName().getString() + ": beta memory data valid"), false);
+            return 1;
+        }
+        source.sendError(Text.literal(player.getName().getString() + ": " + String.join("; ", errors)));
+        return 0;
+    }
+
+    private static int setContamination(ServerCommandSource source, ServerPlayerEntity player,
+                                        StageManager stageManager, float value) {
+        if (!EchoProtocol.config().memoryContaminationEnabled()) {
+            return featureDisabled(source, "memory contamination");
+        }
+        float clamped = Math.max(0.0F, Math.min(EchoProtocol.config().memoryContaminationMaximum(), value));
+        stageManager.memory(player.getUuid()).setContamination(clamped, EchoProtocol.config());
+        source.sendFeedback(() -> Text.literal(player.getName().getString() + ": contamination="
+                + String.format(Locale.ROOT, "%.3f", clamped) + " (admin; no advancements granted)"), true);
+        return 1;
     }
 
     private static int forceReplay(net.minecraft.server.command.ServerCommandSource source, ServerPlayerEntity player, EchoEventDirector director) {

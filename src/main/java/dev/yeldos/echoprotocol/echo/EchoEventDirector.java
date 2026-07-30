@@ -5,9 +5,19 @@ import dev.yeldos.echoprotocol.audio.AudioResidueEvent;
 import dev.yeldos.echoprotocol.audio.AudioResidueManager;
 import dev.yeldos.echoprotocol.audio.AudioResidue;
 import dev.yeldos.echoprotocol.config.EchoConfig;
+import dev.yeldos.echoprotocol.config.EchoPresetManager;
+import dev.yeldos.echoprotocol.config.EchoPresetValues;
+import dev.yeldos.echoprotocol.contamination.ContaminationSource;
+import dev.yeldos.echoprotocol.contamination.ContaminationTier;
+import dev.yeldos.echoprotocol.contradiction.ContradictionBehavior;
+import dev.yeldos.echoprotocol.contradiction.ContradictionGroup;
+import dev.yeldos.echoprotocol.contradiction.ContradictionPlan;
+import dev.yeldos.echoprotocol.contradiction.ContradictionPlanner;
+import dev.yeldos.echoprotocol.contradiction.ContradictionVariant;
 import dev.yeldos.echoprotocol.director.AdaptiveEventSelector;
 import dev.yeldos.echoprotocol.director.EchoEventHistory;
 import dev.yeldos.echoprotocol.director.EventCategory;
+import dev.yeldos.echoprotocol.director.EventDirectorPolicy;
 import dev.yeldos.echoprotocol.entity.EchoEntities;
 import dev.yeldos.echoprotocol.entity.EchoEntity;
 import dev.yeldos.echoprotocol.falsememory.FalseMemoryBehavior;
@@ -17,10 +27,19 @@ import dev.yeldos.echoprotocol.falsememory.FalseMemoryPlan;
 import dev.yeldos.echoprotocol.habit.HabitType;
 import dev.yeldos.echoprotocol.habit.PlayerHabitSummary;
 import dev.yeldos.echoprotocol.habit.PlayerHabitTracker;
+import dev.yeldos.echoprotocol.memory.SignificantEventRecord;
+import dev.yeldos.echoprotocol.profile.ObservationMetric;
+import dev.yeldos.echoprotocol.profile.ObservationStyle;
 import dev.yeldos.echoprotocol.panic.PanicImprint;
 import dev.yeldos.echoprotocol.panic.PanicImprintManager;
 import dev.yeldos.echoprotocol.panic.PanicTriggerType;
 import dev.yeldos.echoprotocol.peripheral.PeripheralEchoBehavior;
+import dev.yeldos.echoprotocol.room.RoomMemoryManager;
+import dev.yeldos.echoprotocol.room.RoomMemoryNode;
+import dev.yeldos.echoprotocol.thread.MemoryObservationResult;
+import dev.yeldos.echoprotocol.thread.MemoryThreadContext;
+import dev.yeldos.echoprotocol.thread.MemoryThreadEventType;
+import dev.yeldos.echoprotocol.thread.MemoryThreadManager;
 import dev.yeldos.echoprotocol.original.OriginalMovementMode;
 import dev.yeldos.echoprotocol.recording.PlayerRecording;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
@@ -56,7 +75,9 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
@@ -66,6 +87,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 
 public final class EchoEventDirector {
     private final RecordingManager recordingManager;
@@ -73,7 +95,10 @@ public final class EchoEventDirector {
     private final FalseMemoryDirector falseMemoryDirector;
     private final PanicImprintManager panicImprints;
     private final AudioResidueManager audioResidues;
-    private final PlayerHabitTracker habits = new PlayerHabitTracker();
+    private final PlayerHabitTracker habits;
+    private final RoomMemoryManager roomMemories;
+    private final MemoryThreadManager memoryThreads;
+    private final ContradictionPlanner contradictionPlanner = new ContradictionPlanner();
     private final EchoEventHistory eventHistory = new EchoEventHistory();
     private final AdaptiveEventSelector selector = new AdaptiveEventSelector();
     private final Map<UUID, List<EchoEntity>> activeEchoes = new HashMap<>();
@@ -84,20 +109,32 @@ public final class EchoEventDirector {
     private final Map<UUID, String> dimensions = new HashMap<>();
     private final Map<UUID, Long> dimensionChangeTicks = new HashMap<>();
     private final Map<UUID, Long> lastSleepTicks = new HashMap<>();
+    private final Map<UUID, PendingSoundObservation> pendingSoundObservations = new HashMap<>();
+    private final Map<UUID, MemoryThreadContext> activeThreadEvents = new HashMap<>();
+    private final Map<UUID, Integer> contradictionSessionCounts = new HashMap<>();
+    private final Map<UUID, Long> lastMemoryFragmentTicks = new HashMap<>();
     private long lastGlobalMimicTick = -9999999L;
 
     public EchoEventDirector(RecordingManager recordingManager, StageManager stageManager) {
         this.recordingManager = recordingManager;
         this.stageManager = stageManager;
         this.falseMemoryDirector = new FalseMemoryDirector(stageManager);
-        this.panicImprints = new PanicImprintManager(recordingManager);
+        this.panicImprints = new PanicImprintManager(recordingManager, stageManager);
         this.audioResidues = new AudioResidueManager(stageManager);
+        this.habits = new PlayerHabitTracker(stageManager);
+        this.roomMemories = new RoomMemoryManager(stageManager);
+        this.memoryThreads = new MemoryThreadManager(stageManager, roomMemories);
     }
 
     public void tick(MinecraftServer server, EchoConfig config) {
         cleanupActiveEchoes();
+        finalizeMissingThreadEvents();
+        long persistentTick = memoryTick(server);
         panicImprints.tick(server, config, stageManager.tick());
         habits.tick(server, config, stageManager.tick());
+        roomMemories.tick(server, config, persistentTick);
+        memoryThreads.tick(server, config, persistentTick);
+        tickPendingSoundObservations(server, config);
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             noteDimension(player);
             PlayerRecording currentRecording = recordingManager.get(player.getUuid());
@@ -108,7 +145,8 @@ public final class EchoEventDirector {
                         0.3F, 0.85F, AudioResidueEvent.FOOTSTEP, config, stageManager.tick());
             }
             PlayerEchoState state = stageManager.state(player.getUuid());
-            if (state.stage() == EchoStage.THE_ORIGINAL && config.originalEnabled()) {
+            if (state.stage() == EchoStage.THE_ORIGINAL && config.originalEnabled()
+                    && stageManager.memory(player.getUuid()).activeThread() == null) {
                 if (state.nextOriginalEventTick() <= 0L) {
                     stageManager.scheduleNextOriginalEvent(state, config);
                 } else if (stageManager.tick() >= state.nextOriginalEventTick() && canRunEvent(player, state, config)) {
@@ -123,6 +161,15 @@ public final class EchoEventDirector {
                 continue;
             }
             if (stageManager.tick() >= state.nextEventTick()) {
+                Optional<MemoryThreadContext> threadStep = memoryThreads.nextStep(player, config, persistentTick);
+                EventDirectorPolicy.Decision decision = EventDirectorPolicy.decide(new EventDirectorPolicy.Inputs(
+                        true, false, true, stageManager.memory(player.getUuid()).activeThread() != null,
+                        threadStep.isPresent()));
+                if (decision == EventDirectorPolicy.Decision.ATTEMPT_THREAD
+                        && spawnThreadEvent(player, threadStep.orElseThrow(), config)) {
+                    stageManager.scheduleNextEvent(state, config);
+                    continue;
+                }
                 EventCategory category = chooseEvent(player, config);
                 boolean spawned = spawnDirectedEvent(player, category, config);
                 stageManager.scheduleNextEvent(state, config);
@@ -166,8 +213,22 @@ public final class EchoEventDirector {
         if (spawnPos.isEmpty()) {
             return false;
         }
+        Runnable observed = observedCallback(target, !forced, null, MemoryObservationResult.DIRECT,
+                type.name().toLowerCase(java.util.Locale.ROOT), 0.0F);
+        if (type == EchoType.MEMORY && !forced) {
+            Runnable baseObserved = observed;
+            boolean[] recovered = {false};
+            observed = () -> {
+                baseObserved.run();
+                if (!recovered[0]) {
+                    recovered[0] = true;
+                    stageManager.memory(target.getUuid()).reduceContamination(
+                            start.serverTick() ^ memoryTick(target), 0.025F, config);
+                }
+            };
+        }
         EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, forcedHostile,
-                !forced, observedCallback(target, !forced));
+                !forced, observed);
         EchoBehaviorController behavior = behaviorFor(type, context);
         List<RecordedFrame> replayFrames = type == EchoType.MIMIC ? frames : ReplayFrames.translated(frames, spawnPos.get());
         EchoEntity echo = createEcho(target, replayFrames, context, behavior, spawnPos.get(), start.bodyYaw(), start.pitch(), config);
@@ -196,6 +257,11 @@ public final class EchoEventDirector {
     }
 
     public boolean spawnFalseMemory(ServerPlayerEntity target, boolean forced, boolean forceDeviation, EchoConfig config) {
+        return spawnFalseMemory(target, forced, forceDeviation, null, config);
+    }
+
+    private boolean spawnFalseMemory(ServerPlayerEntity target, boolean forced, boolean forceDeviation,
+                                     MemoryThreadContext threadContext, EchoConfig config) {
         if (!config.falseMemoriesEnabled()) {
             return false;
         }
@@ -210,10 +276,15 @@ public final class EchoEventDirector {
         if (optionalPlan.isEmpty()) {
             return false;
         }
-        return spawnFalsePlan(target, recording, optionalPlan.get(), config, !forced);
+        return spawnFalsePlan(target, recording, optionalPlan.get(), config, !forced, threadContext);
     }
 
     public boolean replayPanic(ServerPlayerEntity target, EchoConfig config, boolean forced) {
+        return replayPanic(target, config, forced, null);
+    }
+
+    private boolean replayPanic(ServerPlayerEntity target, EchoConfig config, boolean forced,
+                                MemoryThreadContext threadContext) {
         PanicImprint imprint = panicImprints.latest(target.getUuid());
         PlayerRecording recording = recordingManager.get(target.getUuid());
         PlayerEchoState state = stageManager.state(target.getUuid());
@@ -225,13 +296,28 @@ public final class EchoEventDirector {
         }
         Optional<FalseMemoryPlan> optionalPlan = falseMemoryDirector.createPlan(target, recording, imprint, config,
                 stageManager.tick(), true);
-        return optionalPlan.isPresent() && spawnFalsePlan(target, recording, optionalPlan.get(), config, !forced);
+        return optionalPlan.isPresent()
+                && spawnFalsePlan(target, recording, optionalPlan.get(), config, !forced, threadContext);
     }
 
     private boolean spawnFalsePlan(ServerPlayerEntity target, PlayerRecording recording, FalseMemoryPlan plan,
-                                   EchoConfig config, boolean awardsProgress) {
+                                   EchoConfig config, boolean awardsProgress, MemoryThreadContext threadContext) {
         RecordedFrame start = plan.realPrefix().get(0);
-        Runnable observedCallback = observedCallback(target, awardsProgress);
+        Vec3d observedDestination = plan.fabricatedFrames().isEmpty() ? start.pos()
+                : plan.fabricatedFrames().getLast().pos();
+        Runnable baseObserved = observedCallback(target, awardsProgress, threadContext,
+                () -> target.getPos().squaredDistanceTo(observedDestination) <= 6.0D * 6.0D
+                        ? MemoryObservationResult.FOLLOWED : MemoryObservationResult.DIRECT,
+                plan.panicImprint() ? "panic_imprint" : "false_memory", 0.035F);
+        boolean[] contaminationHandled = {false};
+        Runnable observedCallback = () -> {
+            baseObserved.run();
+            if (!contaminationHandled[0] && awardsProgress && threadContext == null) {
+                contaminationHandled[0] = true;
+                contributeContaminationAndGrantTier(target, plan.seed() ^ memoryTick(target),
+                        ContaminationSource.FALSE_MEMORY_OBSERVED, 0.025F, config);
+            }
+        };
         EchoEventContext echoContext = new EchoEventContext(target.getUuid(), config, stageManager, false,
                 awardsProgress, observedCallback);
         FalseMemoryContext falseContext = new FalseMemoryContext(target.getUuid(), config, stageManager,
@@ -252,6 +338,11 @@ public final class EchoEventDirector {
     }
 
     public boolean spawnPeripheral(ServerPlayerEntity target, EchoConfig config, boolean forced) {
+        return spawnPeripheral(target, config, forced, null);
+    }
+
+    private boolean spawnPeripheral(ServerPlayerEntity target, EchoConfig config, boolean forced,
+                                    MemoryThreadContext threadContext) {
         if (!config.peripheralEchoesEnabled()) {
             return false;
         }
@@ -273,7 +364,8 @@ public final class EchoEventDirector {
         }
         RecordedFrame frame = recording.latest();
         EchoEventContext context = new EchoEventContext(uuid, config, stageManager, false,
-                !forced, observedCallback(target, !forced));
+                !forced, observedCallback(target, !forced, threadContext,
+                MemoryObservationResult.PERIPHERAL, "peripheral_echo", 0.015F));
         EchoEntity echo = createEcho(target, List.of(frame), context,
                 new PeripheralEchoBehavior(context, config.peripheralEchoDurationSeconds() * 20),
                 pos.get(), target.bodyYaw + 180.0F, target.getPitch(), config);
@@ -290,6 +382,11 @@ public final class EchoEventDirector {
     }
 
     public boolean playAudioResidue(ServerPlayerEntity target, EchoConfig config, boolean forced) {
+        return playAudioResidue(target, config, forced, null);
+    }
+
+    private boolean playAudioResidue(ServerPlayerEntity target, EchoConfig config, boolean forced,
+                                     MemoryThreadContext threadContext) {
         if (!forced && isInImmediateDanger(target)) {
             return false;
         }
@@ -297,7 +394,135 @@ public final class EchoEventDirector {
         if (played && !forced) {
             recordEvent(target, EventCategory.AUDIO_RESIDUE, true);
         }
+        if (played && threadContext != null) {
+            audioResidues.lastPlaybackPosition(target.getUuid()).ifPresent(position ->
+                    pendingSoundObservations.put(target.getUuid(), new PendingSoundObservation(position,
+                            target.getPos().distanceTo(position), stageManager.tick(), threadContext)));
+        }
         return played;
+    }
+
+    public boolean spawnContradiction(ServerPlayerEntity target, ContradictionVariant variant,
+                                      EchoConfig config, boolean forced) {
+        return spawnContradiction(target, variant, config, forced, null);
+    }
+
+    private boolean spawnContradiction(ServerPlayerEntity target, ContradictionVariant variant,
+                                       EchoConfig config, boolean forced, MemoryThreadContext threadContext) {
+        if (!contradictionEnabled(variant, config)
+                || (!forced && contradictionSessionCounts.getOrDefault(target.getUuid(), 0)
+                >= config.contradictionEventMaximumPerSession())) {
+            return false;
+        }
+        PlayerRecording recording = recordingManager.get(target.getUuid());
+        PlayerEchoState state = stageManager.state(target.getUuid());
+        if (recording == null || recording.frames().size() < 8 || !prepareEvent(target, state, forced, config)) {
+            return false;
+        }
+        ServerWorld world = target.getServerWorld();
+        List<RecordedFrame> source = recording.frames();
+        int sourceStart = Math.max(0, source.size() - Math.min(60, source.size()));
+        List<RecordedFrame> boundedSource = source.subList(sourceStart, source.size());
+        Optional<Vec3d> safeStart = SafeEchoPositionFinder.findSpawn(world, target,
+                boundedSource.getFirst().pos(), config);
+        if (safeStart.isEmpty()) {
+            return false;
+        }
+        List<RecordedFrame> translated = ReplayFrames.translated(boundedSource, safeStart.get());
+        Vec3d destination = chooseContradictionDestination(target, threadContext, translated.getLast().pos(), config);
+        if ((variant == ContradictionVariant.MEMORY_ARRIVED_FIRST
+                || variant == ContradictionVariant.WRONG_DESTINATION) && destination == null) {
+            return false;
+        }
+        ItemStack alternativeItem = chooseContradictionItem(target, threadContext, recording);
+        if (variant == ContradictionVariant.CONFLICTING_ITEM && alternativeItem.isEmpty()) {
+            return false;
+        }
+        long seed = target.getUuid().getMostSignificantBits() ^ target.getUuid().getLeastSignificantBits()
+                ^ memoryTick(target) ^ ((long) variant.ordinal() << 48);
+        Optional<ContradictionPlan> planned = contradictionPlanner.plan(variant, translated, destination,
+                alternativeItem, seed);
+        if (planned.isEmpty()) {
+            return false;
+        }
+        ContradictionPlan plan = sanitizeContradictionPlan(world, planned.get());
+        if (plan == null) {
+            return false;
+        }
+        Runnable observed = contradictionObservedCallback(target, variant, seed, forced, threadContext);
+        EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, false,
+                !forced, observed);
+        ContradictionGroup group = plan.paired() ? new ContradictionGroup() : null;
+        ContradictionBehavior primaryBehavior = new ContradictionBehavior(plan, false, group, observed);
+        RecordedFrame first = plan.primaryFrames().getFirst();
+        EchoEntity primary = createEcho(target, plan.primaryFrames(), context, primaryBehavior, first.pos(),
+                first.bodyYaw(), first.pitch(), config);
+        if (primary == null) {
+            return false;
+        }
+        EchoEntity secondary = null;
+        if (plan.paired()) {
+            group.register(primary::finishAndDiscard);
+            RecordedFrame second = plan.secondaryFrames().getFirst();
+            secondary = createEcho(target, plan.secondaryFrames(), context,
+                    new ContradictionBehavior(plan, true, group, observed), second.pos(),
+                    second.bodyYaw(), second.pitch(), config);
+            if (secondary == null) {
+                group.finishAll();
+                return false;
+            }
+            EchoEntity pairedEcho = secondary;
+            group.register(pairedEcho::finishAndDiscard);
+        }
+        registerEcho(target, primary);
+        if (secondary != null) {
+            registerEcho(target, secondary);
+        }
+        finishSpawnBookkeeping(target, EchoType.FALSE_MEMORY, recording, first.pos(), forced, config);
+        if (!forced) {
+            contradictionSessionCounts.merge(target.getUuid(), 1, Integer::sum);
+            recordEvent(target, EventCategory.CONTRADICTION);
+        }
+        return true;
+    }
+
+    private Runnable contradictionObservedCallback(ServerPlayerEntity target, ContradictionVariant variant,
+                                                    long seed, boolean forced,
+                                                    MemoryThreadContext threadContext) {
+        Runnable base = observedCallback(target, !forced, threadContext, MemoryObservationResult.DIRECT,
+                "contradiction_" + variant.commandName(), 0.055F);
+        boolean[] handled = {false};
+        return () -> {
+            if (handled[0]) {
+                return;
+            }
+            handled[0] = true;
+            base.run();
+            if (!forced && threadContext == null) {
+                contributeContaminationAndGrantTier(target, seed,
+                        ContaminationSource.CONTRADICTION_COMPLETED, 0.055F, EchoProtocol.config());
+            }
+            if (!forced && variant == ContradictionVariant.SPLIT_MEMORY) {
+                stageManager.grant(target, "two_different_endings");
+            }
+            if (!forced && variant == ContradictionVariant.MEMORY_ARRIVED_FIRST) {
+                stageManager.grant(target, "it_was_waiting_there");
+            }
+        };
+    }
+
+    private void contributeContaminationAndGrantTier(ServerPlayerEntity target, long contributionId,
+                                                      ContaminationSource source, float amount,
+                                                      EchoConfig config) {
+        ContaminationTier before = stageManager.memory(target.getUuid()).contamination().tier();
+        boolean changed = stageManager.memory(target.getUuid()).contributeContamination(
+                contributionId, source, amount * EchoPresetManager.values(config).contaminationGrowthMultiplier(),
+                config, false);
+        if (changed && before.ordinal() < ContaminationTier.DISTORTED.ordinal()
+                && stageManager.memory(target.getUuid()).contamination().tier().ordinal()
+                >= ContaminationTier.DISTORTED.ordinal()) {
+            stageManager.grant(target, "this_is_not_how_it_happened");
+        }
     }
 
     public boolean spawnOriginal(ServerPlayerEntity target, boolean forced, OriginalEventKind requestedEvent, EchoConfig config) {
@@ -306,6 +531,12 @@ public final class EchoEventDirector {
 
     private boolean spawnOriginal(ServerPlayerEntity target, boolean forced, OriginalEventKind requestedEvent,
                                   OriginalMovementMode movementTest, EchoConfig config) {
+        return spawnOriginal(target, forced, requestedEvent, movementTest, null, config);
+    }
+
+    private boolean spawnOriginal(ServerPlayerEntity target, boolean forced, OriginalEventKind requestedEvent,
+                                  OriginalMovementMode movementTest, MemoryThreadContext threadContext,
+                                  EchoConfig config) {
         if (!config.originalEnabled()) {
             return false;
         }
@@ -316,9 +547,15 @@ public final class EchoEventDirector {
             return false;
         }
         ServerWorld world = target.getServerWorld();
-        PlayerHabitSummary.Habit habit = chooseHabit(target, config, requestedEvent).orElse(null);
-        FamiliarLocation location = habit == null ? chooseOriginalLocation(target, config, requestedEvent).orElse(null) : null;
-        Vec3d anchor = habit != null ? habit.position().toCenterPos()
+        Vec3d threadAnchor = threadContext == null ? null : resolveThreadAnchor(target, threadContext);
+        if (threadContext != null && threadAnchor == null) {
+            return false;
+        }
+        PlayerHabitSummary.Habit habit = threadAnchor == null
+                ? chooseHabit(target, config, requestedEvent).orElse(null) : null;
+        FamiliarLocation location = threadAnchor == null && habit == null
+                ? chooseOriginalLocation(target, config, requestedEvent).orElse(null) : null;
+        Vec3d anchor = threadAnchor != null ? threadAnchor : habit != null ? habit.position().toCenterPos()
                 : location == null ? target.getPos() : location.pos().toCenterPos();
         OriginalEventKind eventKind = requestedEvent != null ? requestedEvent
                 : habit != null ? chooseOriginalEvent(habit) : chooseOriginalEvent(location);
@@ -333,16 +570,24 @@ public final class EchoEventDirector {
         PlayerRecording recording = recordingManager.get(target.getUuid());
         RecordedFrame frame = recording != null && recording.latest() != null
                 ? recording.latest() : RecordedFrame.capture(target, stageManager.tick(), null);
-        ItemStack heldItem = habit != null && !habit.visualItem().isEmpty()
-                ? habit.visualItem() : chooseFamiliarItem(recording, target);
+        ItemStack threadItem = threadContext == null ? ItemStack.EMPTY
+                : visualItem(threadContext.thread().relatedItemId());
+        ItemStack heldItem = !threadItem.isEmpty() ? threadItem
+                : habit != null && !habit.visualItem().isEmpty() ? habit.visualItem()
+                : chooseFamiliarItem(recording, target);
         List<Vec3d> knownLocations = collectOriginalAnchors(target);
         EchoEventContext context = new EchoEventContext(target.getUuid(), config, stageManager, false,
-                !forced, observedCallback(target, !forced));
+                !forced, observedCallback(target, !forced, threadContext,
+                MemoryObservationResult.DIRECT, "original", 0.06F));
         EchoEntity echo = createEcho(target, List.of(frame), context,
                 new OriginalEchoBehavior(context, eventKind, anchor, knownLocations, heldItem, movementTest,
-                        habit != null || location != null,
+                        threadAnchor != null || habit != null || location != null,
                         habit != null && habit.type() == HabitType.SLEEPING
-                                || location != null && location.type() == FamiliarLocationType.BED), spawnPos.get(),
+                                || location != null && location.type() == FamiliarLocationType.BED
+                                || threadContext != null && threadContext.thread().type()
+                                == dev.yeldos.echoprotocol.thread.MemoryThreadType.BEDROOM,
+                        threadContext == null ? "none" : threadContext.thread().type().commandName()
+                                + ":" + (threadContext.thread().currentStep() + 1)), spawnPos.get(),
                 target.bodyYaw + 180.0F, target.getPitch(), config);
         if (echo == null) {
             return false;
@@ -428,6 +673,40 @@ public final class EchoEventDirector {
     public List<EchoEventHistory.Entry> history(UUID playerUuid) { return eventHistory.entries(playerUuid); }
     public int clearHistory(UUID playerUuid) { return eventHistory.clear(playerUuid); }
 
+    public boolean startThread(ServerPlayerEntity player, dev.yeldos.echoprotocol.thread.MemoryThreadType type,
+                               EchoConfig config, boolean awardsProgress) {
+        return memoryThreads.startPlanned(player, type, config, memoryTick(player), awardsProgress);
+    }
+
+    public boolean advanceThreadForAdmin(ServerPlayerEntity player, EchoConfig config) {
+        return memoryThreads.advanceForAdmin(player, config, memoryTick(player));
+    }
+
+    public boolean cancelThread(UUID playerUuid) {
+        activeThreadEvents.remove(playerUuid);
+        pendingSoundObservations.remove(playerUuid);
+        return memoryThreads.cancel(playerUuid);
+    }
+
+    public String threadStatus(UUID playerUuid) { return memoryThreads.status(playerUuid); }
+
+    public void clearObservationProfile(UUID playerUuid) {
+        stageManager.memory(playerUuid).clearObservationProfile();
+    }
+
+    public void resetBetaData(ServerPlayerEntity player, EchoConfig config) {
+        stopEvents(player);
+        UUID uuid = player.getUuid();
+        pendingSoundObservations.remove(uuid);
+        activeThreadEvents.remove(uuid);
+        panicImprints.disconnect(uuid);
+        audioResidues.disconnect(uuid);
+        habits.disconnect(uuid);
+        roomMemories.clearSession(uuid);
+        memoryThreads.clearSession(uuid);
+        stageManager.memory(uuid).resetBetaData(config.memoryContaminationInitial());
+    }
+
     public String status(ServerPlayerEntity target, EchoConfig config) {
         PlayerEchoState state = stageManager.state(target.getUuid());
         return "stage=" + state.stage().name().toLowerCase() + ", active=" + state.activeEvent()
@@ -445,6 +724,19 @@ public final class EchoEventDirector {
         EchoConfig config = EchoProtocol.config();
         habits.record(player, habit, pos, item, config, stageManager.tick());
         audioResidues.capture(player, pos, sound, volume, pitch, audioEvent, config, stageManager.tick());
+        FamiliarLocationType familiarType = switch (habit) {
+            case STORAGE -> FamiliarLocationType.CHEST;
+            case SLEEPING -> FamiliarLocationType.BED;
+            case CRAFTING -> FamiliarLocationType.CRAFTING;
+            case FURNACE -> FamiliarLocationType.FURNACE;
+            case ENTRY_ROUTE -> FamiliarLocationType.DOORWAY;
+            case PORTAL -> FamiliarLocationType.PORTAL;
+            case IDLE -> FamiliarLocationType.IDLE;
+            case FREQUENT_ITEM -> null;
+        };
+        if (familiarType != null) {
+            roomMemories.observeInteraction(player, familiarType, pos, config, memoryTick(player));
+        }
     }
 
     public void observeDamage(ServerPlayerEntity player, DamageSource source, float baseDamage, boolean blocked) {
@@ -463,13 +755,28 @@ public final class EchoEventDirector {
         clearPlayer(player);
     }
 
+    public void onRespawn(ServerPlayerEntity player) {
+        stopEvents(player);
+        pendingSoundObservations.remove(player.getUuid());
+        activeThreadEvents.remove(player.getUuid());
+        recordingManager.clear(player.getUuid());
+        roomMemories.clearSession(player.getUuid());
+        memoryThreads.pause(player.getUuid());
+    }
+
     public void clearPlayer(ServerPlayerEntity player) {
         stopEvents(player);
         UUID uuid = player.getUuid();
         recordingManager.clear(uuid);
         panicImprints.disconnect(player.getUuid());
         audioResidues.disconnect(player.getUuid());
-        habits.clear(uuid);
+        habits.disconnect(uuid);
+        roomMemories.clearSession(uuid);
+        memoryThreads.clearSession(uuid);
+        pendingSoundObservations.remove(uuid);
+        activeThreadEvents.remove(uuid);
+        contradictionSessionCounts.remove(uuid);
+        lastMemoryFragmentTicks.remove(uuid);
         eventHistory.clear(uuid);
         falseMemoryDirector.clear(uuid);
         lastMimicTick.remove(uuid);
@@ -484,32 +791,66 @@ public final class EchoEventDirector {
 
     private EventCategory chooseEvent(ServerPlayerEntity target, EchoConfig config) {
         List<AdaptiveEventSelector.Candidate> candidates = new ArrayList<>();
+        var memory = stageManager.memory(target.getUuid());
+        float contamination = config.memoryContaminationEnabled() ? memory.contamination().value() : 0.0F;
+        EchoPresetValues preset = EchoPresetManager.values(config);
+        ObservationStyle style = config.observationProfileEnabled()
+                ? memory.observationProfile().style(config.observationProfileMinimumSamples())
+                : ObservationStyle.UNCLASSIFIED;
+        float adaptation = config.observationProfileAdaptationStrength();
         boolean night = target.getServerWorld().isNight();
         boolean underground = !target.getServerWorld().isSkyVisible(target.getBlockPos());
         boolean atHome = stageManager.familiarLocations(target).stream()
                 .anyMatch(location -> location.dimension().equals(target.getServerWorld().getRegistryKey().getValue().toString())
                         && location.pos().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D);
         if (canSpawnType(target, EchoType.MEMORY, config)) {
-            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.MEMORY, config.memoryEchoWeight()));
+            int weight = EchoPresetManager.adjustWeight(config.memoryEchoWeight(),
+                    memory.contamination().authenticMemoryMinimumWeight());
+            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.MEMORY, Math.max(1, weight)));
         }
         if (canSpawnType(target, EchoType.CORRUPTED, config)) {
-            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.CORRUPTED, config.corruptedEchoWeight()));
+            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.CORRUPTED,
+                    EchoPresetManager.adjustWeight(config.corruptedEchoWeight(), 1.0F + contamination * 0.35F)));
         }
         if (canSpawnType(target, EchoType.MIMIC, config)) {
-            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.MIMIC, config.mimicEchoWeight()));
+            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.MIMIC,
+                    EchoPresetManager.adjustWeight(config.mimicEchoWeight(), preset.strongEventWeightMultiplier())));
         }
         if (canSpawnType(target, EchoType.FALSE_MEMORY, config)) {
+            float styleMultiplier = style == ObservationStyle.FOLLOWER ? 1.0F + adaptation
+                    : style == ObservationStyle.AVOIDANT ? 1.0F - adaptation * 0.35F : 1.0F;
             candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.FALSE_MEMORY,
-                    config.falseMemoryEventWeight() + (atHome ? 3 : 0)));
+                    EchoPresetManager.adjustWeight(config.falseMemoryEventWeight() + (atHome ? 3 : 0),
+                            (1.0F + contamination * 0.75F) * styleMultiplier)));
         }
         if (config.panicImprintsEnabled() && !panicImprints.list(target.getUuid()).isEmpty()) {
-            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.PANIC_IMPRINT, 3));
+            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.PANIC_IMPRINT,
+                    EchoPresetManager.adjustWeight(3, preset.strongEventWeightMultiplier())));
         }
         if (canSpawnPeripheral(target, config)) {
-            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.PERIPHERAL, night ? 7 : 4));
+            float styleMultiplier = style == ObservationStyle.AVOIDANT || style == ObservationStyle.DISTANT
+                    ? 1.0F + adaptation : 1.0F;
+            float presetMultiplier = config.intensityPreset() == dev.yeldos.echoprotocol.config.EchoIntensityPreset.SUBTLE
+                    ? 1.25F : 1.0F;
+            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.PERIPHERAL,
+                    EchoPresetManager.adjustWeight(night ? 7 : 4, styleMultiplier * presetMultiplier)));
         }
         if (audioResidues.isEligible(target, config, stageManager.tick())) {
-            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.AUDIO_RESIDUE, underground ? 6 : 4));
+            float styleMultiplier = style == ObservationStyle.INVESTIGATOR ? 1.0F + adaptation : 1.0F;
+            float presetMultiplier = config.intensityPreset() == dev.yeldos.echoprotocol.config.EchoIntensityPreset.SUBTLE
+                    ? 1.25F : 1.0F;
+            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.AUDIO_RESIDUE,
+                    EchoPresetManager.adjustWeight(underground ? 6 : 4, styleMultiplier * presetMultiplier)));
+        }
+        PlayerRecording recording = recordingManager.get(target.getUuid());
+        if (config.contradictoryMemoriesEnabled()
+                && contradictionSessionCounts.getOrDefault(target.getUuid(), 0)
+                < config.contradictionEventMaximumPerSession()
+                && recording != null && recording.frames().size() >= 8) {
+            float multiplier = preset.contradictionWeightMultiplier()
+                    * memory.contamination().contradictionWeightMultiplier();
+            candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.CONTRADICTION,
+                    EchoPresetManager.adjustWeight(2, multiplier)));
         }
         return selector.select(target.getUuid(), stageManager.tick(), candidates, eventHistory, config);
     }
@@ -527,7 +868,191 @@ public final class EchoEventDirector {
             case PERIPHERAL -> spawnPeripheral(target, config, false);
             case AUDIO_RESIDUE -> playAudioResidue(target, config, false);
             case ORIGINAL -> spawnOriginal(target, false, null, config);
+            case CONTRADICTION -> spawnContradiction(target, chooseContradictionVariant(target, config),
+                    config, false);
         };
+    }
+
+    private static ContradictionVariant chooseContradictionVariant(ServerPlayerEntity target, EchoConfig config) {
+        List<ContradictionVariant> available = new ArrayList<>();
+        if (config.splitMemoryEnabled()) available.add(ContradictionVariant.SPLIT_MEMORY);
+        if (config.repeatedEndingEnabled()) available.add(ContradictionVariant.REPEATED_ENDING);
+        if (config.wrongDestinationEnabled()) available.add(ContradictionVariant.WRONG_DESTINATION);
+        if (config.memoryArrivedFirstEnabled()) available.add(ContradictionVariant.MEMORY_ARRIVED_FIRST);
+        if (config.conflictingItemEnabled()) available.add(ContradictionVariant.CONFLICTING_ITEM);
+        if (config.missingSegmentEnabled()) available.add(ContradictionVariant.MISSING_SEGMENT);
+        available.add(ContradictionVariant.CONFLICTING_COPIES);
+        if (available.isEmpty()) {
+            return null;
+        }
+        long seed = target.getUuid().getMostSignificantBits() ^ target.getUuid().getLeastSignificantBits()
+                ^ target.getServerWorld().getTime();
+        return available.get(Math.floorMod((int) (seed ^ (seed >>> 32)), available.size()));
+    }
+
+    private boolean spawnThreadEvent(ServerPlayerEntity target, MemoryThreadContext context, EchoConfig config) {
+        if (activeThreadEvents.containsKey(target.getUuid())) {
+            return false;
+        }
+        boolean started = switch (context.step().eventType()) {
+            case AUDIO_RESIDUE -> playAudioResidue(target, config, false, context);
+            case FALSE_MEMORY -> context.step().contradictionVariant() != null
+                    && contradictionEnabled(context.step().contradictionVariant(), config)
+                    ? spawnContradiction(target, context.step().contradictionVariant(), config, false, context)
+                    : spawnFalseMemory(target, false, true, context, config);
+            case PERIPHERAL_ECHO -> spawnPeripheral(target, config, false, context);
+            case ORIGINAL -> spawnOriginal(target, false, originalEventFor(context), null, context, config);
+            case PANIC_IMPRINT -> replayPanic(target, config, false, context);
+            case CONTRADICTION -> spawnContradiction(target,
+                    context.step().contradictionVariant() == null
+                            ? ContradictionVariant.WRONG_DESTINATION : context.step().contradictionVariant(),
+                    config, false, context);
+        };
+        if (!started) {
+            memoryThreads.fail(target.getUuid());
+            return false;
+        }
+        if (!memoryThreads.eventStarted(target.getUuid(), context, memoryTick(target))) {
+            stopEvents(target);
+            pendingSoundObservations.remove(target.getUuid());
+            memoryThreads.fail(target.getUuid());
+            return false;
+        }
+        activeThreadEvents.put(target.getUuid(), context);
+        return true;
+    }
+
+    private static OriginalEventKind originalEventFor(MemoryThreadContext context) {
+        return switch (context.thread().type()) {
+            case BEDROOM -> OriginalEventKind.YOUR_BED;
+            case STORAGE -> OriginalEventKind.WRONG_OWNER;
+            case ENTRANCE -> OriginalEventKind.ALREADY_HOME;
+            case PORTAL -> OriginalEventKind.EARLIER_THAN_YOU;
+            case EMPTY_ROOM, IGNORED_SOUND -> OriginalEventKind.EMPTY_ROOM;
+            case PANIC -> OriginalEventKind.WAITING;
+            case FOLLOWED_ECHO, MISSING_ROUTE -> OriginalEventKind.CONFRONTATION;
+        };
+    }
+
+    private Vec3d resolveThreadAnchor(ServerPlayerEntity target, MemoryThreadContext context) {
+        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        if (context.room() != null && context.room().valid() && context.room().dimension().equals(dimension)
+                && target.getServerWorld().isChunkLoaded(context.room().center())) {
+            return context.room().center().toCenterPos();
+        }
+        if (context.thread().type() == dev.yeldos.echoprotocol.thread.MemoryThreadType.PANIC) {
+            PanicImprint imprint = panicImprints.latest(target.getUuid());
+            if (imprint != null && imprint.dimension().equals(dimension) && !imprint.frames().isEmpty()) {
+                BlockPos position = BlockPos.ofFloored(imprint.frames().getLast().pos());
+                if (target.getServerWorld().isChunkLoaded(position)) {
+                    return imprint.frames().getLast().pos();
+                }
+            }
+        }
+        for (AudioResidue residue : audioResidues.list(target.getUuid()).reversed()) {
+            if (residue.dimension().equals(dimension) && target.getServerWorld().isChunkLoaded(residue.position())) {
+                return residue.position().toCenterPos();
+            }
+        }
+        return null;
+    }
+
+    private Vec3d chooseContradictionDestination(ServerPlayerEntity target, MemoryThreadContext context,
+                                                 Vec3d routeEnd, EchoConfig config) {
+        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        if (context != null && context.room() != null && context.room().valid()
+                && context.room().dimension().equals(dimension)
+                && target.getServerWorld().isChunkLoaded(context.room().center())) {
+            return context.room().center().toCenterPos();
+        }
+        double maximumSquared = config.maximumEchoSpawnDistance() * config.maximumEchoSpawnDistance();
+        return stageManager.memory(target.getUuid()).roomGraph().nodes().stream()
+                .filter(RoomMemoryNode::valid)
+                .filter(room -> room.dimension().equals(dimension))
+                .filter(room -> target.getServerWorld().isChunkLoaded(room.center()))
+                .filter(room -> room.center().getSquaredDistance(target.getBlockPos()) <= maximumSquared)
+                .filter(room -> room.center().toCenterPos().squaredDistanceTo(routeEnd) >= 3.0D * 3.0D)
+                .sorted(java.util.Comparator.comparingDouble(RoomMemoryNode::confidence).reversed())
+                .map(room -> room.center().toCenterPos()).findFirst().orElse(null);
+    }
+
+    private ItemStack chooseContradictionItem(ServerPlayerEntity target, MemoryThreadContext context,
+                                              PlayerRecording recording) {
+        ItemStack related = context == null ? ItemStack.EMPTY : visualItem(context.thread().relatedItemId());
+        ItemStack current = recording.latest() == null ? ItemStack.EMPTY : recording.latest().heldItemVisual();
+        if (!related.isEmpty() && !ItemStack.areItemsEqual(related, current)) {
+            return related;
+        }
+        for (PlayerHabitSummary.Habit habit : habits.habits(target.getUuid())) {
+            if (!habit.visualItem().isEmpty() && !ItemStack.areItemsEqual(habit.visualItem(), current)) {
+                return habit.visualItem().copyWithCount(1);
+            }
+        }
+        for (RecordedFrame frame : recording.frames().reversed()) {
+            if (!frame.heldItemVisual().isEmpty()
+                    && !ItemStack.areItemsEqual(frame.heldItemVisual(), current)) {
+                return frame.heldItemVisual().copyWithCount(1);
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static ContradictionPlan sanitizeContradictionPlan(ServerWorld world, ContradictionPlan plan) {
+        List<RecordedFrame> primary = safeSequence(world, plan.primaryFrames());
+        List<RecordedFrame> secondary = safeSequence(world, plan.secondaryFrames());
+        if (primary.size() < 2 || (plan.paired() && secondary.size() < 2)
+                || (!plan.secondaryFrames().isEmpty() && secondary.size() < 2)) {
+            return null;
+        }
+        return new ContradictionPlan(plan.variant(), primary, secondary, plan.destination(), plan.delayTicks(),
+                plan.paired(), plan.requiresUnobservedTransition(), plan.seed());
+    }
+
+    private static List<RecordedFrame> safeSequence(ServerWorld world, List<RecordedFrame> frames) {
+        List<RecordedFrame> safe = new ArrayList<>(Math.min(frames.size(),
+                ContradictionPlan.MAXIMUM_FRAMES_PER_SEQUENCE));
+        for (RecordedFrame frame : frames) {
+            if (!isSafeContradictionPosition(world, frame.pos())) {
+                break;
+            }
+            safe.add(frame);
+        }
+        return List.copyOf(safe);
+    }
+
+    private static boolean isSafeContradictionPosition(ServerWorld world, Vec3d position) {
+        BlockPos block = BlockPos.ofFloored(position);
+        if (!world.isChunkLoaded(block)) {
+            return false;
+        }
+        Box box = new Box(position.x - 0.32D, position.y, position.z - 0.32D,
+                position.x + 0.32D, position.y + 1.8D, position.z + 0.32D);
+        return world.isSpaceEmpty(box)
+                && !world.getBlockState(block).isOf(Blocks.LAVA)
+                && !world.getBlockState(block).isOf(Blocks.FIRE)
+                && !world.getBlockState(block).isOf(Blocks.SOUL_FIRE)
+                && !world.getBlockState(block.down()).getCollisionShape(world, block.down()).isEmpty();
+    }
+
+    private static boolean contradictionEnabled(ContradictionVariant variant, EchoConfig config) {
+        if (!config.contradictoryMemoriesEnabled() || variant == null) {
+            return false;
+        }
+        return switch (variant) {
+            case SPLIT_MEMORY -> config.splitMemoryEnabled();
+            case REPEATED_ENDING -> config.repeatedEndingEnabled();
+            case WRONG_DESTINATION -> config.wrongDestinationEnabled();
+            case MEMORY_ARRIVED_FIRST -> config.memoryArrivedFirstEnabled();
+            case CONFLICTING_ITEM -> config.conflictingItemEnabled();
+            case MISSING_SEGMENT -> config.missingSegmentEnabled();
+            case CONFLICTING_COPIES -> true;
+        };
+    }
+
+    private static ItemStack visualItem(String itemId) {
+        Identifier id = Identifier.tryParse(itemId == null ? "" : itemId);
+        return id != null && Registries.ITEM.containsId(id)
+                ? new ItemStack(Registries.ITEM.get(id)) : ItemStack.EMPTY;
     }
 
     private boolean prepareEvent(ServerPlayerEntity target, PlayerEchoState state, boolean forced, EchoConfig config) {
@@ -543,10 +1068,21 @@ public final class EchoEventDirector {
 
     private boolean canRunEvent(ServerPlayerEntity player, PlayerEchoState state, EchoConfig config) {
         long now = stageManager.tick();
+        long persistentNow = memoryTick(player);
+        long lastPersistentStrong = stageManager.memory(player.getUuid()).lastStrongEventTick();
+        long persistentStrongSilence = (long) EchoPresetManager.strongSilenceMinutes(
+                config.strongEventSilenceMinutes(), config) * 60L * 20L;
         long joinGrace = (long) config.joinEventGraceMinutes() * 60L * 20L;
+        long lastThreadFinale = stageManager.memory(player.getUuid()).significantEvents().stream()
+                .filter(event -> event.eventType().equals("thread_completed"))
+                .mapToLong(SignificantEventRecord::tick).max().orElse(Long.MIN_VALUE / 2);
+        long finaleSilence = (long) EchoPresetManager.strongSilenceMinutes(
+                config.memoryThreadStrongFinaleSilenceMinutes(), config) * 60L * 20L;
         if (now - state.lastJoinTick() < joinGrace || now - state.lastRespawnTick() < 20L * 30L
                 || now - dimensionChangeTicks.getOrDefault(player.getUuid(), Long.MIN_VALUE / 2) < 100L
-                || now - lastSleepTicks.getOrDefault(player.getUuid(), Long.MIN_VALUE / 2) < 200L) {
+                || now - lastSleepTicks.getOrDefault(player.getUuid(), Long.MIN_VALUE / 2) < 200L
+                || lastPersistentStrong > 0L && persistentNow - lastPersistentStrong < persistentStrongSilence
+                || persistentNow - lastThreadFinale < finaleSilence) {
             return false;
         }
         return !player.isSleeping() && !player.isSpectator() && !player.isDead() && player.getHealth() > 0.0F
@@ -572,6 +1108,10 @@ public final class EchoEventDirector {
             dimensionChangeTicks.put(player.getUuid(), stageManager.tick());
             stopEvents(player);
             recordingManager.clear(player.getUuid());
+            pendingSoundObservations.remove(player.getUuid());
+            activeThreadEvents.remove(player.getUuid());
+            roomMemories.clearSession(player.getUuid());
+            memoryThreads.pause(player.getUuid());
         }
     }
 
@@ -643,7 +1183,8 @@ public final class EchoEventDirector {
 
     private void registerEcho(ServerPlayerEntity target, EchoEntity echo) {
         activeEchoes.computeIfAbsent(target.getUuid(), ignored -> new ArrayList<>()).add(echo);
-        stageManager.state(target.getUuid()).setActiveEvent(true);
+        PlayerEchoState state = stageManager.state(target.getUuid());
+        state.setActiveEvent(EventDirectorPolicy.lockAfterAttempt(state.activeEvent(), true));
     }
 
     private void finishSpawnBookkeeping(ServerPlayerEntity target, EchoType type, PlayerRecording recording,
@@ -674,13 +1215,65 @@ public final class EchoEventDirector {
     }
 
     private Runnable observedCallback(ServerPlayerEntity target, boolean awardsProgress) {
+        return observedCallback(target, awardsProgress, null, MemoryObservationResult.DIRECT,
+                "echo", 0.0F);
+    }
+
+    private Runnable observedCallback(ServerPlayerEntity target, boolean awardsProgress,
+                                      MemoryThreadContext threadContext, MemoryObservationResult result,
+                                      String eventType, float contaminationContribution) {
+        return observedCallback(target, awardsProgress, threadContext, () -> result,
+                eventType, contaminationContribution);
+    }
+
+    private Runnable observedCallback(ServerPlayerEntity target, boolean awardsProgress,
+                                      MemoryThreadContext threadContext,
+                                      Supplier<MemoryObservationResult> resultSupplier,
+                                      String eventType, float contaminationContribution) {
         boolean[] handled = {false};
         return () -> {
             if (handled[0]) {
                 return;
             }
             handled[0] = true;
+            MemoryObservationResult result = resultSupplier.get();
+            if (result == null) {
+                result = MemoryObservationResult.DIRECT;
+            }
             eventHistory.markLastObserved(target.getUuid());
+            if (EchoProtocol.config().observationProfileEnabled()) {
+                ObservationMetric metric = switch (result) {
+                    case FOLLOWED -> ObservationMetric.ECHO_FOLLOWED;
+                    case APPROACHED -> ObservationMetric.APPROACH;
+                    case RETREATED -> ObservationMetric.RETREAT;
+                    case MISSED, NOT_PRESENT -> ObservationMetric.EVENT_MISSED;
+                    default -> ObservationMetric.DIRECT_OBSERVATION;
+                };
+                stageManager.memory(target.getUuid()).recordObservation(metric, 1.0F, null);
+            }
+            if (awardsProgress && threadContext == null) {
+                RoomMemoryNode room = roomMemories.currentRoom(target, 16.0D);
+                long roomId = room == null ? 0L : room.id();
+                String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+                boolean strong = eventType.equals("mimic") || eventType.equals("original")
+                        || eventType.equals("panic_imprint") || eventType.startsWith("contradiction_");
+                stageManager.memory(target.getUuid()).recordSignificantEvent(
+                        new SignificantEventRecord(eventType, dimension, roomId, memoryTick(target), result, strong),
+                        EchoProtocol.config().persistentSignificantEventMaximum());
+            }
+            if (threadContext != null) {
+                memoryThreads.outcome(target, threadContext, result, eventType, contaminationContribution,
+                        EchoProtocol.config(), memoryTick(target));
+                activeThreadEvents.remove(target.getUuid(), threadContext);
+                if (awardsProgress && eventType.equals("original")
+                        && stageManager.memory(target.getUuid()).significantEvents().stream()
+                        .anyMatch(event -> event.roomNodeId() == threadContext.thread().selectedRoomNodeId()
+                                && event.eventType().equals("false_memory")
+                                && event.observation() == MemoryObservationResult.FOLLOWED)) {
+                    stageManager.grant(target, "you_led_it_here");
+                }
+                maybeSendMemoryFragment(target, threadContext, EchoProtocol.config());
+            }
             if (awardsProgress) {
                 stageManager.grant(target, "deja_vu");
                 if (EchoProtocol.config().realPlayerSkins()
@@ -689,6 +1282,73 @@ public final class EchoEventDirector {
                 }
             }
         };
+    }
+
+    private void tickPendingSoundObservations(MinecraftServer server, EchoConfig config) {
+        long now = stageManager.tick();
+        long persistentNow = memoryTick(server);
+        pendingSoundObservations.entrySet().removeIf(entry -> {
+            ServerPlayerEntity player = server.getPlayerManager().getPlayer(entry.getKey());
+            PendingSoundObservation pending = entry.getValue();
+            if (player == null || !player.isAlive()) {
+                memoryThreads.fail(entry.getKey());
+                return true;
+            }
+            double distance = player.getPos().distanceTo(pending.position());
+            if (distance <= 3.5D || distance + 2.0D < pending.initialDistance()) {
+                stageManager.memory(entry.getKey()).recordObservation(
+                        ObservationMetric.SOUND_INVESTIGATED, 1.0F, (float) distance);
+                memoryThreads.outcome(player, pending.threadContext(), MemoryObservationResult.INVESTIGATED_SOUND,
+                        "audio_residue", 0.025F, config, persistentNow);
+                activeThreadEvents.remove(entry.getKey(), pending.threadContext());
+                return true;
+            }
+            if (now - pending.startedTick() >= 200L) {
+                stageManager.memory(entry.getKey()).recordObservation(
+                        ObservationMetric.SOUND_IGNORED, 1.0F, (float) distance);
+                memoryThreads.outcome(player, pending.threadContext(), MemoryObservationResult.IGNORED_SOUND,
+                        "audio_residue", 0.012F, config, persistentNow);
+                activeThreadEvents.remove(entry.getKey(), pending.threadContext());
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private record PendingSoundObservation(Vec3d position, double initialDistance, long startedTick,
+                                           MemoryThreadContext threadContext) {
+    }
+
+    private void maybeSendMemoryFragment(ServerPlayerEntity target, MemoryThreadContext context,
+                                         EchoConfig config) {
+        if (!context.thread().awardsProgress() || !config.betaMemoryTextFragmentsEnabled()) {
+            return;
+        }
+        long interval = (long) config.betaMemoryTextMinimumIntervalMinutes() * 60L * 20L;
+        long previous = lastMemoryFragmentTicks.getOrDefault(target.getUuid(), Long.MIN_VALUE / 2);
+        long reference = context.eventReference() ^ target.getUuid().getMostSignificantBits();
+        if (stageManager.tick() - previous < interval || Math.floorMod(reference, 5L) != 0L) {
+            return;
+        }
+        int fragment = Math.floorMod((int) (reference ^ (reference >>> 32)), 8);
+        target.sendMessage(Text.translatable("text.echoprotocol.memory_fragment." + fragment), true);
+        lastMemoryFragmentTicks.put(target.getUuid(), stageManager.tick());
+    }
+
+    private void finalizeMissingThreadEvents() {
+        activeThreadEvents.entrySet().removeIf(entry -> {
+            if (pendingSoundObservations.containsKey(entry.getKey())) {
+                return false;
+            }
+            boolean entityActive = activeEchoes.getOrDefault(entry.getKey(), List.of()).stream()
+                    .anyMatch(echo -> !echo.isRemoved());
+            if (entityActive) {
+                return false;
+            }
+            memoryThreads.missed(entry.getKey(), entry.getValue());
+            stageManager.memory(entry.getKey()).recordObservation(ObservationMetric.EVENT_MISSED, 1.0F, null);
+            return true;
+        });
     }
 
     private static List<RecordedFrame> corruptSegment(List<RecordedFrame> original) {
@@ -879,6 +1539,7 @@ public final class EchoEventDirector {
                 stageManager.state(entry.getKey()).setActiveEvent(false);
                 return true;
             }
+            stageManager.state(entry.getKey()).setActiveEvent(true);
             return false;
         });
     }
@@ -921,6 +1582,14 @@ public final class EchoEventDirector {
         }
     }
 
+    private static long memoryTick(MinecraftServer server) {
+        return Math.max(0L, server.getOverworld().getTime());
+    }
+
+    private static long memoryTick(ServerPlayerEntity player) {
+        return memoryTick(player.getServer());
+    }
+
     public void clear() {
         for (List<EchoEntity> echoes : activeEchoes.values()) {
             for (EchoEntity echo : echoes) {
@@ -942,6 +1611,12 @@ public final class EchoEventDirector {
         panicImprints.clearAll();
         audioResidues.clearAll();
         habits.clearAll();
+        roomMemories.clearAll();
+        memoryThreads.clearAll();
+        pendingSoundObservations.clear();
+        activeThreadEvents.clear();
+        contradictionSessionCounts.clear();
+        lastMemoryFragmentTicks.clear();
         EchoSoundPlayer.clearAll();
         lastGlobalMimicTick = -9999999L;
     }

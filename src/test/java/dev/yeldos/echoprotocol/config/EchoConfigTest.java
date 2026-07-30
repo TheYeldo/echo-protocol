@@ -91,6 +91,41 @@ class EchoConfigTest {
         assertFalse(config.falseMemoriesEnabled());
     }
 
+    @Test
+    void betaDefaultsAndUnsafeBoundsAreMigratedAndClamped() throws IOException {
+        Path path = directory.resolve("beta.json");
+        Files.writeString(path, "{\"room_memory_maximum_nodes\":999,"
+                + "\"room_memory_maximum_edges\":999,\"memory_thread_minimum_steps\":4,"
+                + "\"memory_thread_maximum_steps\":2,\"memory_contamination_initial\":8.0,"
+                + "\"observation_profile_adaptation_strength\":9.0,\"intensity_preset\":\"invalid\"}");
+
+        EchoConfig config = EchoConfig.load(path);
+
+        assertEquals(20, config.roomMemoryMaximumNodes());
+        assertEquals(48, config.roomMemoryMaximumEdges());
+        assertEquals(4, config.memoryThreadMinimumSteps());
+        assertEquals(4, config.memoryThreadMaximumSteps());
+        assertEquals(1.0F, config.memoryContaminationInitial());
+        assertEquals(0.50F, config.observationProfileAdaptationStrength());
+        assertEquals(EchoIntensityPreset.STANDARD, config.intensityPreset());
+    }
+
+    @Test
+    void presetsChangeRuntimeValuesWithoutResettingUnrelatedConfig() throws IOException {
+        Path path = directory.resolve("preset.json");
+        Files.writeString(path, "{\"maximum_history_minutes\":7,\"future_option\":true}");
+        EchoConfig config = EchoConfig.load(path);
+        EchoPresetValues standard = EchoPresetManager.values(config);
+        EchoPresetValues subtle = EchoPresetValues.forPreset(EchoIntensityPreset.SUBTLE);
+        EchoPresetValues intense = EchoPresetValues.forPreset(EchoIntensityPreset.INTENSE);
+
+        assertEquals(1.0F, standard.eventIntervalMultiplier());
+        assertTrue(subtle.eventIntervalMultiplier() > 1.0F);
+        assertTrue(intense.eventIntervalMultiplier() < 1.0F);
+        assertEquals(7, config.maximumHistoryMinutes());
+        assertTrue(read(path).get("future_option").getAsBoolean());
+    }
+
     private static JsonObject read(Path path) throws IOException {
         return JsonParser.parseString(Files.readString(path)).getAsJsonObject();
     }

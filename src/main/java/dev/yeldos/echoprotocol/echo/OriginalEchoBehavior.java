@@ -38,6 +38,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     private final OriginalMovementMode movementTest;
     private final boolean familiarAnchor;
     private final boolean bedAnchor;
+    private final String threadMetadata;
     private final OriginalObservationTracker observation = new OriginalObservationTracker();
     private final OriginalMovementController movement;
     private EchoState state = EchoState.OBSERVING;
@@ -62,6 +63,12 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     public OriginalEchoBehavior(EchoEventContext context, OriginalEventKind eventKind, Vec3d anchor,
                                 List<Vec3d> knownLocations, ItemStack heldItem, OriginalMovementMode movementTest,
                                 boolean familiarAnchor, boolean bedAnchor) {
+        this(context, eventKind, anchor, knownLocations, heldItem, movementTest, familiarAnchor, bedAnchor, "none");
+    }
+
+    public OriginalEchoBehavior(EchoEventContext context, OriginalEventKind eventKind, Vec3d anchor,
+                                List<Vec3d> knownLocations, ItemStack heldItem, OriginalMovementMode movementTest,
+                                boolean familiarAnchor, boolean bedAnchor, String threadMetadata) {
         this.context = context;
         this.eventKind = eventKind;
         this.anchor = anchor;
@@ -70,6 +77,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
         this.movementTest = movementTest;
         this.familiarAnchor = familiarAnchor;
         this.bedAnchor = bedAnchor;
+        this.threadMetadata = threadMetadata == null || threadMetadata.isBlank() ? "none" : threadMetadata;
         this.movement = new OriginalMovementController(context.config());
     }
 
@@ -505,6 +513,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
                 + ", approaching=" + observation.approaching()
                 + ", retreating=" + observation.retreating()
                 + ", following=" + observation.following()
+                + ", thread=" + threadMetadata
                 + ", stuck=" + movement.stuckCount()
                 + ", replans=" + movement.replanCount()
                 + ", age=" + age;

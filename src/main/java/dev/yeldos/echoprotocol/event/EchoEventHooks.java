@@ -34,7 +34,10 @@ public final class EchoEventHooks {
             director.onDisconnect(handler.player);
             stageManager.save(server);
         });
-        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> stageManager.markRespawn(newPlayer));
+        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
+            stageManager.markRespawn(newPlayer);
+            director.onRespawn(newPlayer);
+        });
         ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, baseDamage, damageTaken, blocked) -> {
             if (entity instanceof ServerPlayerEntity player) {
                 director.observeDamage(player, source, baseDamage, blocked);

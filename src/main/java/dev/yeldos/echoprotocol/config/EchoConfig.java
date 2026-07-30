@@ -85,7 +85,8 @@ public record EchoConfig(
         int originalMaximumActivePerPlayer,
         int originalMaximumFamiliarLocations,
         float originalNearFullOpacity,
-        V04Settings v04
+        V04Settings v04,
+        BetaSettings beta
 ) {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static Path configPath() {
@@ -98,7 +99,7 @@ public record EchoConfig(
                 true, true, 0.42F, 0.48F, 0.58F, 0.90F, true, true, 0.65F, false, true,
                 0.75F, 0.55F, 0.70F, 0.80F, true, true, 16, 8, 32,
                 true, 180, 8, 4, 2, true, 20, 60, 150, true, false, false,
-                4.0F, 1, 16, 0.94F, V04Settings.defaults());
+                4.0F, 1, 16, 0.94F, V04Settings.defaults(), BetaSettings.defaults());
     }
 
     public static EchoConfig load() {
@@ -126,10 +127,22 @@ public record EchoConfig(
     }
 
     public EchoConfig withDebugLogging(boolean debugLogging) {
-        EchoConfig updated = new EchoConfig(enabled, recordingSampleIntervalTicks, maximumHistoryMinutes,
+        EchoConfig updated = copy(debugLogging, beta).validate();
+        updated.save();
+        return updated;
+    }
+
+    public EchoConfig withIntensityPreset(EchoIntensityPreset preset) {
+        EchoConfig updated = copy(debugLogging, beta.withPreset(preset)).validate();
+        updated.save();
+        return updated;
+    }
+
+    private EchoConfig copy(boolean updatedDebugLogging, BetaSettings updatedBeta) {
+        return new EchoConfig(enabled, recordingSampleIntervalTicks, maximumHistoryMinutes,
                 minimumReplaySeconds, maximumReplaySeconds, stageZeroMinutes, stageTwoMinutes,
                 minimumEventIntervalSeconds, maximumEventIntervalSeconds, sharedEchoes, chatEchoes,
-                torchFlicker, soundEchoes, echoOpacity, debugLogging, memoryEchoEnabled, corruptedEchoEnabled,
+                torchFlicker, soundEchoes, echoOpacity, updatedDebugLogging, memoryEchoEnabled, corruptedEchoEnabled,
                 mimicEchoEnabled, memoryEchoWeight, corruptedEchoWeight, mimicEchoWeight, mimicMinimumStageTwoMinutes,
                 mimicSessionCooldownMinutes, mimicMovementDelayMinTicks, mimicMovementDelayMaxTicks, mimicDamageEnabled,
                 mimicDamage, mimicMaxHitsPerEvent, mimicChaseEnabled, mimicChaseMinSeconds, mimicChaseMaxSeconds,
@@ -143,9 +156,8 @@ public record EchoConfig(
                 stageThreeRequiredMimicEvents, originalEnabled, originalFirstEventDelayMinutes,
                 originalMinimumEventIntervalMinutes, originalMaximumEventIntervalMinutes,
                 originalFamiliarLocationsEnabled, originalTextEvents, originalDamageEnabled, originalDamage,
-                originalMaximumActivePerPlayer, originalMaximumFamiliarLocations, originalNearFullOpacity, v04).validate();
-        updated.save();
-        return updated;
+                originalMaximumActivePerPlayer, originalMaximumFamiliarLocations, originalNearFullOpacity, v04,
+                updatedBeta);
     }
 
     public int maxFrames() {
@@ -231,6 +243,7 @@ public record EchoConfig(
         int originalMaxLocations = clamp(originalMaximumFamiliarLocations, 4, 64);
         float originalOpacity = clampFloat(originalNearFullOpacity, 0.5F, 1.0F);
         V04Settings validatedV04 = (v04 == null ? V04Settings.defaults() : v04).validate();
+        BetaSettings validatedBeta = (beta == null ? BetaSettings.defaults() : beta).validate();
         return new EchoConfig(enabled, sample, history, minReplay, maxReplay, stageZero, stageTwo, minInterval,
                 maxInterval, sharedEchoes, chatEchoes, torchFlicker, soundEchoes, opacity, debugLogging,
                 memoryEchoEnabled, corruptedEchoEnabled, mimicEchoEnabled, memoryWeight, corruptedWeight, mimicWeight,
@@ -243,7 +256,7 @@ public record EchoConfig(
                 stageThreeEnabled, stageThreePlaytime, stageThreeMemory, stageThreeCorrupted, stageThreeMimic,
                 originalEnabled, originalFirstDelay, originalMinInterval, originalMaxInterval,
                 originalFamiliarLocationsEnabled, originalTextEvents, originalDamageEnabled, originalSafeDamage,
-                originalMaxActive, originalMaxLocations, originalOpacity, validatedV04);
+                originalMaxActive, originalMaxLocations, originalOpacity, validatedV04, validatedBeta);
     }
 
     private Raw toRaw() {
@@ -320,6 +333,7 @@ public record EchoConfig(
         raw.original_maximum_familiar_locations = originalMaximumFamiliarLocations;
         raw.original_near_full_opacity = originalNearFullOpacity;
         v04.writeTo(raw);
+        beta.writeTo(raw);
         return raw;
     }
 
@@ -400,7 +414,8 @@ public record EchoConfig(
                 raw.original_maximum_active_per_player == null ? defaults.originalMaximumActivePerPlayer : raw.original_maximum_active_per_player,
                 raw.original_maximum_familiar_locations == null ? defaults.originalMaximumFamiliarLocations : raw.original_maximum_familiar_locations,
                 raw.original_near_full_opacity == null ? defaults.originalNearFullOpacity : raw.original_near_full_opacity,
-                V04Settings.fromRaw(raw, defaults.v04)
+                V04Settings.fromRaw(raw, defaults.v04),
+                BetaSettings.fromRaw(raw, defaults.beta)
         );
     }
 
@@ -448,6 +463,53 @@ public record EchoConfig(
     public int originalUnobservedGraceTicks() { return v04.originalUnobservedGraceTicks; }
     public int originalMinimumPauseTicks() { return v04.originalMinimumPauseTicks; }
     public int originalMaximumPauseTicks() { return v04.originalMaximumPauseTicks; }
+    public EchoIntensityPreset intensityPreset() { return beta.intensityPreset; }
+    public boolean persistentMemoryEnabled() { return beta.persistentMemoryEnabled; }
+    public int persistentMemoryDataVersion() { return beta.persistentMemoryDataVersion; }
+    public int persistentPanicImprintMaximum() { return beta.persistentPanicImprintMaximum; }
+    public int persistentAudioResidueMaximum() { return beta.persistentAudioResidueMaximum; }
+    public int persistentHabitMaximum() { return beta.persistentHabitMaximum; }
+    public int persistentSignificantEventMaximum() { return beta.persistentSignificantEventMaximum; }
+    public int persistentFalseMemorySeedMaximum() { return beta.persistentFalseMemorySeedMaximum; }
+    public boolean roomMemoryEnabled() { return beta.roomMemoryEnabled; }
+    public int roomMemoryMaximumNodes() { return beta.roomMemoryMaximumNodes; }
+    public int roomMemoryMaximumEdges() { return beta.roomMemoryMaximumEdges; }
+    public int roomMemoryProbeRadius() { return beta.roomMemoryProbeRadius; }
+    public int roomMemoryMaximumBlockChecks() { return beta.roomMemoryMaximumBlockChecks; }
+    public int roomMemoryUpdateIntervalSeconds() { return beta.roomMemoryUpdateIntervalSeconds; }
+    public float roomMemoryMinimumConfidence() { return beta.roomMemoryMinimumConfidence; }
+    public float roomMemoryStrongEventConfidence() { return beta.roomMemoryStrongEventConfidence; }
+    public boolean memoryThreadsEnabled() { return beta.memoryThreadsEnabled; }
+    public int memoryThreadMinimumSteps() { return beta.memoryThreadMinimumSteps; }
+    public int memoryThreadMaximumSteps() { return beta.memoryThreadMaximumSteps; }
+    public int memoryThreadMaximumActivePerPlayer() { return beta.memoryThreadMaximumActivePerPlayer; }
+    public int memoryThreadMinimumIntervalMinutes() { return beta.memoryThreadMinimumIntervalMinutes; }
+    public int memoryThreadStrongFinaleSilenceMinutes() { return beta.memoryThreadStrongFinaleSilenceMinutes; }
+    public boolean memoryThreadResumeAfterRestart() { return beta.memoryThreadResumeAfterRestart; }
+    public boolean contradictoryMemoriesEnabled() { return beta.contradictoryMemoriesEnabled; }
+    public boolean splitMemoryEnabled() { return beta.splitMemoryEnabled; }
+    public boolean repeatedEndingEnabled() { return beta.repeatedEndingEnabled; }
+    public boolean wrongDestinationEnabled() { return beta.wrongDestinationEnabled; }
+    public boolean memoryArrivedFirstEnabled() { return beta.memoryArrivedFirstEnabled; }
+    public boolean conflictingItemEnabled() { return beta.conflictingItemEnabled; }
+    public boolean missingSegmentEnabled() { return beta.missingSegmentEnabled; }
+    public int contradictionEventMaximumPerSession() { return beta.contradictionEventMaximumPerSession; }
+    public boolean memoryContaminationEnabled() { return beta.memoryContaminationEnabled; }
+    public float memoryContaminationInitial() { return beta.memoryContaminationInitial; }
+    public float memoryContaminationGrowthMultiplier() { return beta.memoryContaminationGrowthMultiplier; }
+    public float memoryContaminationPassiveRecoveryPerHour() { return beta.memoryContaminationPassiveRecoveryPerHour; }
+    public float memoryContaminationMaximum() { return beta.memoryContaminationMaximum; }
+    public boolean memoryContaminationAdminTestsAffectState() { return beta.memoryContaminationAdminTestsAffectState; }
+    public boolean observationProfileEnabled() { return beta.observationProfileEnabled; }
+    public int observationProfileMinimumSamples() { return beta.observationProfileMinimumSamples; }
+    public float observationProfileDecayPerHour() { return beta.observationProfileDecayPerHour; }
+    public float observationProfileAdaptationStrength() { return beta.observationProfileAdaptationStrength; }
+    public boolean threadAwareOriginalEnabled() { return beta.threadAwareOriginalEnabled; }
+    public boolean threadAwareFalseMemoriesEnabled() { return beta.threadAwareFalseMemoriesEnabled; }
+    public boolean threadAwareAudioResidueEnabled() { return beta.threadAwareAudioResidueEnabled; }
+    public boolean threadAwarePeripheralEchoesEnabled() { return beta.threadAwarePeripheralEchoesEnabled; }
+    public boolean betaMemoryTextFragmentsEnabled() { return beta.betaMemoryTextFragmentsEnabled; }
+    public int betaMemoryTextMinimumIntervalMinutes() { return beta.betaMemoryTextMinimumIntervalMinutes; }
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
@@ -576,6 +638,53 @@ public record EchoConfig(
         Integer original_unobserved_grace_ticks;
         Integer original_minimum_pause_ticks;
         Integer original_maximum_pause_ticks;
+        String intensity_preset;
+        Boolean persistent_memory_enabled;
+        Integer persistent_memory_data_version;
+        Integer persistent_panic_imprint_maximum;
+        Integer persistent_audio_residue_maximum;
+        Integer persistent_habit_maximum;
+        Integer persistent_significant_event_maximum;
+        Integer persistent_false_memory_seed_maximum;
+        Boolean room_memory_enabled;
+        Integer room_memory_maximum_nodes;
+        Integer room_memory_maximum_edges;
+        Integer room_memory_probe_radius;
+        Integer room_memory_maximum_block_checks;
+        Integer room_memory_update_interval_seconds;
+        Float room_memory_minimum_confidence;
+        Float room_memory_strong_event_confidence;
+        Boolean memory_threads_enabled;
+        Integer memory_thread_minimum_steps;
+        Integer memory_thread_maximum_steps;
+        Integer memory_thread_maximum_active_per_player;
+        Integer memory_thread_minimum_interval_minutes;
+        Integer memory_thread_strong_finale_silence_minutes;
+        Boolean memory_thread_resume_after_restart;
+        Boolean contradictory_memories_enabled;
+        Boolean split_memory_enabled;
+        Boolean repeated_ending_enabled;
+        Boolean wrong_destination_enabled;
+        Boolean memory_arrived_first_enabled;
+        Boolean conflicting_item_enabled;
+        Boolean missing_segment_enabled;
+        Integer contradiction_event_maximum_per_session;
+        Boolean memory_contamination_enabled;
+        Float memory_contamination_initial;
+        Float memory_contamination_growth_multiplier;
+        Float memory_contamination_passive_recovery_per_hour;
+        Float memory_contamination_maximum;
+        Boolean memory_contamination_admin_tests_affect_state;
+        Boolean observation_profile_enabled;
+        Integer observation_profile_minimum_samples;
+        Float observation_profile_decay_per_hour;
+        Float observation_profile_adaptation_strength;
+        Boolean thread_aware_original_enabled;
+        Boolean thread_aware_false_memories_enabled;
+        Boolean thread_aware_audio_residue_enabled;
+        Boolean thread_aware_peripheral_echoes_enabled;
+        Boolean beta_memory_text_fragments_enabled;
+        Integer beta_memory_text_minimum_interval_minutes;
     }
 
     public record V04Settings(
@@ -787,6 +896,247 @@ public record EchoConfig(
             raw.original_unobserved_grace_ticks = originalUnobservedGraceTicks;
             raw.original_minimum_pause_ticks = originalMinimumPauseTicks;
             raw.original_maximum_pause_ticks = originalMaximumPauseTicks;
+        }
+    }
+
+    public record BetaSettings(
+            EchoIntensityPreset intensityPreset,
+            boolean persistentMemoryEnabled,
+            int persistentMemoryDataVersion,
+            int persistentPanicImprintMaximum,
+            int persistentAudioResidueMaximum,
+            int persistentHabitMaximum,
+            int persistentSignificantEventMaximum,
+            int persistentFalseMemorySeedMaximum,
+            boolean roomMemoryEnabled,
+            int roomMemoryMaximumNodes,
+            int roomMemoryMaximumEdges,
+            int roomMemoryProbeRadius,
+            int roomMemoryMaximumBlockChecks,
+            int roomMemoryUpdateIntervalSeconds,
+            float roomMemoryMinimumConfidence,
+            float roomMemoryStrongEventConfidence,
+            boolean memoryThreadsEnabled,
+            int memoryThreadMinimumSteps,
+            int memoryThreadMaximumSteps,
+            int memoryThreadMaximumActivePerPlayer,
+            int memoryThreadMinimumIntervalMinutes,
+            int memoryThreadStrongFinaleSilenceMinutes,
+            boolean memoryThreadResumeAfterRestart,
+            boolean contradictoryMemoriesEnabled,
+            boolean splitMemoryEnabled,
+            boolean repeatedEndingEnabled,
+            boolean wrongDestinationEnabled,
+            boolean memoryArrivedFirstEnabled,
+            boolean conflictingItemEnabled,
+            boolean missingSegmentEnabled,
+            int contradictionEventMaximumPerSession,
+            boolean memoryContaminationEnabled,
+            float memoryContaminationInitial,
+            float memoryContaminationGrowthMultiplier,
+            float memoryContaminationPassiveRecoveryPerHour,
+            float memoryContaminationMaximum,
+            boolean memoryContaminationAdminTestsAffectState,
+            boolean observationProfileEnabled,
+            int observationProfileMinimumSamples,
+            float observationProfileDecayPerHour,
+            float observationProfileAdaptationStrength,
+            boolean threadAwareOriginalEnabled,
+            boolean threadAwareFalseMemoriesEnabled,
+            boolean threadAwareAudioResidueEnabled,
+            boolean threadAwarePeripheralEchoesEnabled,
+            boolean betaMemoryTextFragmentsEnabled,
+            int betaMemoryTextMinimumIntervalMinutes
+    ) {
+        static BetaSettings defaults() {
+            return new BetaSettings(EchoIntensityPreset.STANDARD,
+                    true, 1, 3, 16, 16, 24, 4,
+                    true, 20, 48, 8, 256, 20, 0.35F, 0.65F,
+                    true, 2, 4, 1, 20, 30, true,
+                    true, true, true, true, true, true, true, 2,
+                    true, 0.0F, 1.0F, 0.04F, 1.0F, false,
+                    true, 6, 0.08F, 0.30F,
+                    true, true, true, true,
+                    true, 45);
+        }
+
+        BetaSettings withPreset(EchoIntensityPreset preset) {
+            return new BetaSettings(preset == null ? EchoIntensityPreset.STANDARD : preset,
+                    persistentMemoryEnabled, persistentMemoryDataVersion, persistentPanicImprintMaximum,
+                    persistentAudioResidueMaximum, persistentHabitMaximum, persistentSignificantEventMaximum,
+                    persistentFalseMemorySeedMaximum, roomMemoryEnabled, roomMemoryMaximumNodes,
+                    roomMemoryMaximumEdges, roomMemoryProbeRadius, roomMemoryMaximumBlockChecks,
+                    roomMemoryUpdateIntervalSeconds, roomMemoryMinimumConfidence, roomMemoryStrongEventConfidence,
+                    memoryThreadsEnabled, memoryThreadMinimumSteps, memoryThreadMaximumSteps,
+                    memoryThreadMaximumActivePerPlayer, memoryThreadMinimumIntervalMinutes,
+                    memoryThreadStrongFinaleSilenceMinutes, memoryThreadResumeAfterRestart,
+                    contradictoryMemoriesEnabled, splitMemoryEnabled, repeatedEndingEnabled, wrongDestinationEnabled,
+                    memoryArrivedFirstEnabled, conflictingItemEnabled, missingSegmentEnabled,
+                    contradictionEventMaximumPerSession, memoryContaminationEnabled, memoryContaminationInitial,
+                    memoryContaminationGrowthMultiplier, memoryContaminationPassiveRecoveryPerHour,
+                    memoryContaminationMaximum, memoryContaminationAdminTestsAffectState,
+                    observationProfileEnabled, observationProfileMinimumSamples, observationProfileDecayPerHour,
+                    observationProfileAdaptationStrength, threadAwareOriginalEnabled,
+                    threadAwareFalseMemoriesEnabled, threadAwareAudioResidueEnabled,
+                    threadAwarePeripheralEchoesEnabled, betaMemoryTextFragmentsEnabled,
+                    betaMemoryTextMinimumIntervalMinutes);
+        }
+
+        BetaSettings validate() {
+            int minimumSteps = clamp(memoryThreadMinimumSteps, 2, 4);
+            int maximumSteps = clamp(Math.max(memoryThreadMaximumSteps, minimumSteps), minimumSteps, 4);
+            float minimumConfidence = clampFloat(roomMemoryMinimumConfidence, 0.05F, 1.0F);
+            float strongConfidence = clampFloat(roomMemoryStrongEventConfidence, minimumConfidence, 1.0F);
+            float maximumContamination = clampFloat(memoryContaminationMaximum, 0.1F, 1.0F);
+            return new BetaSettings(
+                    intensityPreset == null ? EchoIntensityPreset.STANDARD : intensityPreset,
+                    persistentMemoryEnabled,
+                    1,
+                    clamp(persistentPanicImprintMaximum, 0, 3),
+                    clamp(persistentAudioResidueMaximum, 0, 16),
+                    clamp(persistentHabitMaximum, 0, 16),
+                    clamp(persistentSignificantEventMaximum, 0, 24),
+                    clamp(persistentFalseMemorySeedMaximum, 0, 4),
+                    roomMemoryEnabled,
+                    clamp(roomMemoryMaximumNodes, 1, 20),
+                    clamp(roomMemoryMaximumEdges, 0, 48),
+                    clamp(roomMemoryProbeRadius, 1, 8),
+                    clamp(roomMemoryMaximumBlockChecks, 16, 256),
+                    clamp(roomMemoryUpdateIntervalSeconds, 5, 600),
+                    minimumConfidence,
+                    strongConfidence,
+                    memoryThreadsEnabled,
+                    minimumSteps,
+                    maximumSteps,
+                    1,
+                    clamp(memoryThreadMinimumIntervalMinutes, 1, 1440),
+                    clamp(memoryThreadStrongFinaleSilenceMinutes, 1, 1440),
+                    memoryThreadResumeAfterRestart,
+                    contradictoryMemoriesEnabled,
+                    splitMemoryEnabled,
+                    repeatedEndingEnabled,
+                    wrongDestinationEnabled,
+                    memoryArrivedFirstEnabled,
+                    conflictingItemEnabled,
+                    missingSegmentEnabled,
+                    clamp(contradictionEventMaximumPerSession, 0, 4),
+                    memoryContaminationEnabled,
+                    clampFloat(memoryContaminationInitial, 0.0F, maximumContamination),
+                    clampFloat(memoryContaminationGrowthMultiplier, 0.0F, 3.0F),
+                    clampFloat(memoryContaminationPassiveRecoveryPerHour, 0.0F, 1.0F),
+                    maximumContamination,
+                    memoryContaminationAdminTestsAffectState,
+                    observationProfileEnabled,
+                    clamp(observationProfileMinimumSamples, 3, 64),
+                    clampFloat(observationProfileDecayPerHour, 0.0F, 1.0F),
+                    clampFloat(observationProfileAdaptationStrength, 0.0F, 0.50F),
+                    threadAwareOriginalEnabled,
+                    threadAwareFalseMemoriesEnabled,
+                    threadAwareAudioResidueEnabled,
+                    threadAwarePeripheralEchoesEnabled,
+                    betaMemoryTextFragmentsEnabled,
+                    clamp(betaMemoryTextMinimumIntervalMinutes, 5, 1440));
+        }
+
+        static BetaSettings fromRaw(Raw raw, BetaSettings defaults) {
+            return new BetaSettings(
+                    raw.intensity_preset == null ? defaults.intensityPreset : EchoIntensityPreset.parse(raw.intensity_preset),
+                    raw.persistent_memory_enabled == null ? defaults.persistentMemoryEnabled : raw.persistent_memory_enabled,
+                    raw.persistent_memory_data_version == null ? defaults.persistentMemoryDataVersion : raw.persistent_memory_data_version,
+                    raw.persistent_panic_imprint_maximum == null ? defaults.persistentPanicImprintMaximum : raw.persistent_panic_imprint_maximum,
+                    raw.persistent_audio_residue_maximum == null ? defaults.persistentAudioResidueMaximum : raw.persistent_audio_residue_maximum,
+                    raw.persistent_habit_maximum == null ? defaults.persistentHabitMaximum : raw.persistent_habit_maximum,
+                    raw.persistent_significant_event_maximum == null ? defaults.persistentSignificantEventMaximum : raw.persistent_significant_event_maximum,
+                    raw.persistent_false_memory_seed_maximum == null ? defaults.persistentFalseMemorySeedMaximum : raw.persistent_false_memory_seed_maximum,
+                    raw.room_memory_enabled == null ? defaults.roomMemoryEnabled : raw.room_memory_enabled,
+                    raw.room_memory_maximum_nodes == null ? defaults.roomMemoryMaximumNodes : raw.room_memory_maximum_nodes,
+                    raw.room_memory_maximum_edges == null ? defaults.roomMemoryMaximumEdges : raw.room_memory_maximum_edges,
+                    raw.room_memory_probe_radius == null ? defaults.roomMemoryProbeRadius : raw.room_memory_probe_radius,
+                    raw.room_memory_maximum_block_checks == null ? defaults.roomMemoryMaximumBlockChecks : raw.room_memory_maximum_block_checks,
+                    raw.room_memory_update_interval_seconds == null ? defaults.roomMemoryUpdateIntervalSeconds : raw.room_memory_update_interval_seconds,
+                    raw.room_memory_minimum_confidence == null ? defaults.roomMemoryMinimumConfidence : raw.room_memory_minimum_confidence,
+                    raw.room_memory_strong_event_confidence == null ? defaults.roomMemoryStrongEventConfidence : raw.room_memory_strong_event_confidence,
+                    raw.memory_threads_enabled == null ? defaults.memoryThreadsEnabled : raw.memory_threads_enabled,
+                    raw.memory_thread_minimum_steps == null ? defaults.memoryThreadMinimumSteps : raw.memory_thread_minimum_steps,
+                    raw.memory_thread_maximum_steps == null ? defaults.memoryThreadMaximumSteps : raw.memory_thread_maximum_steps,
+                    raw.memory_thread_maximum_active_per_player == null ? defaults.memoryThreadMaximumActivePerPlayer : raw.memory_thread_maximum_active_per_player,
+                    raw.memory_thread_minimum_interval_minutes == null ? defaults.memoryThreadMinimumIntervalMinutes : raw.memory_thread_minimum_interval_minutes,
+                    raw.memory_thread_strong_finale_silence_minutes == null ? defaults.memoryThreadStrongFinaleSilenceMinutes : raw.memory_thread_strong_finale_silence_minutes,
+                    raw.memory_thread_resume_after_restart == null ? defaults.memoryThreadResumeAfterRestart : raw.memory_thread_resume_after_restart,
+                    raw.contradictory_memories_enabled == null ? defaults.contradictoryMemoriesEnabled : raw.contradictory_memories_enabled,
+                    raw.split_memory_enabled == null ? defaults.splitMemoryEnabled : raw.split_memory_enabled,
+                    raw.repeated_ending_enabled == null ? defaults.repeatedEndingEnabled : raw.repeated_ending_enabled,
+                    raw.wrong_destination_enabled == null ? defaults.wrongDestinationEnabled : raw.wrong_destination_enabled,
+                    raw.memory_arrived_first_enabled == null ? defaults.memoryArrivedFirstEnabled : raw.memory_arrived_first_enabled,
+                    raw.conflicting_item_enabled == null ? defaults.conflictingItemEnabled : raw.conflicting_item_enabled,
+                    raw.missing_segment_enabled == null ? defaults.missingSegmentEnabled : raw.missing_segment_enabled,
+                    raw.contradiction_event_maximum_per_session == null ? defaults.contradictionEventMaximumPerSession : raw.contradiction_event_maximum_per_session,
+                    raw.memory_contamination_enabled == null ? defaults.memoryContaminationEnabled : raw.memory_contamination_enabled,
+                    raw.memory_contamination_initial == null ? defaults.memoryContaminationInitial : raw.memory_contamination_initial,
+                    raw.memory_contamination_growth_multiplier == null ? defaults.memoryContaminationGrowthMultiplier : raw.memory_contamination_growth_multiplier,
+                    raw.memory_contamination_passive_recovery_per_hour == null ? defaults.memoryContaminationPassiveRecoveryPerHour : raw.memory_contamination_passive_recovery_per_hour,
+                    raw.memory_contamination_maximum == null ? defaults.memoryContaminationMaximum : raw.memory_contamination_maximum,
+                    raw.memory_contamination_admin_tests_affect_state == null ? defaults.memoryContaminationAdminTestsAffectState : raw.memory_contamination_admin_tests_affect_state,
+                    raw.observation_profile_enabled == null ? defaults.observationProfileEnabled : raw.observation_profile_enabled,
+                    raw.observation_profile_minimum_samples == null ? defaults.observationProfileMinimumSamples : raw.observation_profile_minimum_samples,
+                    raw.observation_profile_decay_per_hour == null ? defaults.observationProfileDecayPerHour : raw.observation_profile_decay_per_hour,
+                    raw.observation_profile_adaptation_strength == null ? defaults.observationProfileAdaptationStrength : raw.observation_profile_adaptation_strength,
+                    raw.thread_aware_original_enabled == null ? defaults.threadAwareOriginalEnabled : raw.thread_aware_original_enabled,
+                    raw.thread_aware_false_memories_enabled == null ? defaults.threadAwareFalseMemoriesEnabled : raw.thread_aware_false_memories_enabled,
+                    raw.thread_aware_audio_residue_enabled == null ? defaults.threadAwareAudioResidueEnabled : raw.thread_aware_audio_residue_enabled,
+                    raw.thread_aware_peripheral_echoes_enabled == null ? defaults.threadAwarePeripheralEchoesEnabled : raw.thread_aware_peripheral_echoes_enabled,
+                    raw.beta_memory_text_fragments_enabled == null ? defaults.betaMemoryTextFragmentsEnabled : raw.beta_memory_text_fragments_enabled,
+                    raw.beta_memory_text_minimum_interval_minutes == null ? defaults.betaMemoryTextMinimumIntervalMinutes : raw.beta_memory_text_minimum_interval_minutes);
+        }
+
+        void writeTo(Raw raw) {
+            raw.intensity_preset = intensityPreset.configName();
+            raw.persistent_memory_enabled = persistentMemoryEnabled;
+            raw.persistent_memory_data_version = persistentMemoryDataVersion;
+            raw.persistent_panic_imprint_maximum = persistentPanicImprintMaximum;
+            raw.persistent_audio_residue_maximum = persistentAudioResidueMaximum;
+            raw.persistent_habit_maximum = persistentHabitMaximum;
+            raw.persistent_significant_event_maximum = persistentSignificantEventMaximum;
+            raw.persistent_false_memory_seed_maximum = persistentFalseMemorySeedMaximum;
+            raw.room_memory_enabled = roomMemoryEnabled;
+            raw.room_memory_maximum_nodes = roomMemoryMaximumNodes;
+            raw.room_memory_maximum_edges = roomMemoryMaximumEdges;
+            raw.room_memory_probe_radius = roomMemoryProbeRadius;
+            raw.room_memory_maximum_block_checks = roomMemoryMaximumBlockChecks;
+            raw.room_memory_update_interval_seconds = roomMemoryUpdateIntervalSeconds;
+            raw.room_memory_minimum_confidence = roomMemoryMinimumConfidence;
+            raw.room_memory_strong_event_confidence = roomMemoryStrongEventConfidence;
+            raw.memory_threads_enabled = memoryThreadsEnabled;
+            raw.memory_thread_minimum_steps = memoryThreadMinimumSteps;
+            raw.memory_thread_maximum_steps = memoryThreadMaximumSteps;
+            raw.memory_thread_maximum_active_per_player = memoryThreadMaximumActivePerPlayer;
+            raw.memory_thread_minimum_interval_minutes = memoryThreadMinimumIntervalMinutes;
+            raw.memory_thread_strong_finale_silence_minutes = memoryThreadStrongFinaleSilenceMinutes;
+            raw.memory_thread_resume_after_restart = memoryThreadResumeAfterRestart;
+            raw.contradictory_memories_enabled = contradictoryMemoriesEnabled;
+            raw.split_memory_enabled = splitMemoryEnabled;
+            raw.repeated_ending_enabled = repeatedEndingEnabled;
+            raw.wrong_destination_enabled = wrongDestinationEnabled;
+            raw.memory_arrived_first_enabled = memoryArrivedFirstEnabled;
+            raw.conflicting_item_enabled = conflictingItemEnabled;
+            raw.missing_segment_enabled = missingSegmentEnabled;
+            raw.contradiction_event_maximum_per_session = contradictionEventMaximumPerSession;
+            raw.memory_contamination_enabled = memoryContaminationEnabled;
+            raw.memory_contamination_initial = memoryContaminationInitial;
+            raw.memory_contamination_growth_multiplier = memoryContaminationGrowthMultiplier;
+            raw.memory_contamination_passive_recovery_per_hour = memoryContaminationPassiveRecoveryPerHour;
+            raw.memory_contamination_maximum = memoryContaminationMaximum;
+            raw.memory_contamination_admin_tests_affect_state = memoryContaminationAdminTestsAffectState;
+            raw.observation_profile_enabled = observationProfileEnabled;
+            raw.observation_profile_minimum_samples = observationProfileMinimumSamples;
+            raw.observation_profile_decay_per_hour = observationProfileDecayPerHour;
+            raw.observation_profile_adaptation_strength = observationProfileAdaptationStrength;
+            raw.thread_aware_original_enabled = threadAwareOriginalEnabled;
+            raw.thread_aware_false_memories_enabled = threadAwareFalseMemoriesEnabled;
+            raw.thread_aware_audio_residue_enabled = threadAwareAudioResidueEnabled;
+            raw.thread_aware_peripheral_echoes_enabled = threadAwarePeripheralEchoesEnabled;
+            raw.beta_memory_text_fragments_enabled = betaMemoryTextFragmentsEnabled;
+            raw.beta_memory_text_minimum_interval_minutes = betaMemoryTextMinimumIntervalMinutes;
         }
     }
 }

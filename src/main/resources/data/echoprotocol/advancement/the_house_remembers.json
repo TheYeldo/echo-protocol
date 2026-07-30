@@ -1,0 +1,10 @@
+{
+  "parent": "echoprotocol:that_never_happened",
+  "display": {
+    "icon": { "id": "minecraft:echo_shard" },
+    "title": { "translate": "advancements.echoprotocol.the_house_remembers.title" },
+    "description": { "translate": "advancements.echoprotocol.the_house_remembers.description" },
+    "hidden": true
+  },
+  "criteria": { "trigger": { "trigger": "minecraft:impossible" } }
+}
