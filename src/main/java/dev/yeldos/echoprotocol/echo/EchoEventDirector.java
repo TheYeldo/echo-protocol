@@ -1572,7 +1572,7 @@ public final class EchoEventDirector {
     }
 
     private static void spawnTargetedParticles(ServerPlayerEntity player, Vec3d pos) {
-        player.getServerWorld().spawnParticles(player, ParticleTypes.SCULK_SOUL, true, pos.x, pos.y, pos.z,
+        player.getServerWorld().spawnParticles(player, ParticleTypes.SCULK_SOUL, true, false, pos.x, pos.y, pos.z,
                 8, 0.15D, 0.35D, 0.15D, 0.01D);
     }
 

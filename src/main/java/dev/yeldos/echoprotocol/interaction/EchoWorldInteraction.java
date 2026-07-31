@@ -80,7 +80,7 @@ public final class EchoWorldInteraction {
 
         BlockState visual = blockItem.getBlock().getDefaultState();
         sendVisual(target, placement, visual, age + GHOST_BLOCK_HOLD_TICKS);
-        world.spawnParticles(target, new BlockStateParticleEffect(ParticleTypes.BLOCK, visual), true,
+        world.spawnParticles(target, new BlockStateParticleEffect(ParticleTypes.BLOCK, visual), true, false,
                 placement.getX() + 0.5D, placement.getY() + 0.55D, placement.getZ() + 0.5D,
                 10, 0.28D, 0.32D, 0.28D, 0.035D);
         playTargetOnly(target, visual.getSoundGroup().getPlaceSound(), placement.toCenterPos(),
