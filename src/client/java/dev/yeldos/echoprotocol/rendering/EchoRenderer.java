@@ -9,13 +9,13 @@ import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.BipedEntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
+import net.minecraft.client.render.entity.model.BipedEntityModel;
 import net.minecraft.client.render.entity.model.EntityModelLayers;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.client.util.SkinTextures;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.Arm;
 import net.minecraft.util.Identifier;
 
 public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEntityRenderState, PlayerEntityModel> {
@@ -56,18 +56,13 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         state.isInSneakingPose = entity.replaySneaking();
         state.isSwimming = entity.replaySwimming();
 
-        ItemStack held = entity.getHeldItemVisual().copy();
-        state.rightHandStack = held;
-        state.rightHandItemModel = held.isEmpty() ? null
-                : itemRenderer.getModel(held, entity, ModelTransformationMode.THIRD_PERSON_RIGHT_HAND);
-        state.leftHandStack = ItemStack.EMPTY;
-        state.leftHandItemModel = null;
-        state.mainHandState.empty = held.isEmpty();
-        state.mainHandState.itemUseAction = held.isEmpty() ? null : held.getUseAction();
-        state.mainHandState.hasChargedCrossbow = false;
-        state.offHandState.empty = true;
-        state.offHandState.itemUseAction = null;
-        state.offHandState.hasChargedCrossbow = false;
+    }
+
+    @Override
+    protected BipedEntityModel.ArmPose getArmPose(EchoEntity entity, Arm arm) {
+        return arm == entity.getMainArm() && !entity.getHeldItemVisual().isEmpty()
+                ? BipedEntityModel.ArmPose.ITEM
+                : BipedEntityModel.ArmPose.EMPTY;
     }
 
     @Override
