@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import static dev.yeldos.echoprotocol.memory.NbtCompat.*;
+
 public final class PlayerMemoryStateCodec {
     private PlayerMemoryStateCodec() {
     }
@@ -62,7 +64,7 @@ public final class PlayerMemoryStateCodec {
     }
 
     public static PlayerMemoryState read(NbtCompound nbt) {
-        int version = nbt.contains("DataVersion", NbtElement.NUMBER_TYPE) ? nbt.getInt("DataVersion") : 1;
+        int version = nbt.getInt("DataVersion").orElse(1);
         if (version > MemoryDataVersion.CURRENT) {
             throw new UnsupportedMemoryVersionException(version);
         }
@@ -73,38 +75,38 @@ public final class PlayerMemoryStateCodec {
         readEntries(nbt, "Habits", state, PlayerMemoryStateCodec::readHabit, state::restoreHabit);
         readEntries(nbt, "RoomNodes", state, PlayerMemoryStateCodec::readRoomNode, state.roomGraph()::restore);
         readEntries(nbt, "RoomEdges", state, PlayerMemoryStateCodec::readRoomEdge, state.roomGraph()::restore);
-        if (nbt.contains("ActiveThread", NbtElement.COMPOUND_TYPE)) {
+        if (containsType(nbt, "ActiveThread", NbtElement.COMPOUND_TYPE)) {
             try {
-                state.restoreThread(readThread(nbt.getCompound("ActiveThread")));
+                state.restoreThread(readThread(getCompound(nbt, "ActiveThread")));
             } catch (RuntimeException exception) {
                 state.addLoadWarning("active thread skipped: " + simpleMessage(exception));
             }
         }
-        if (nbt.contains("CompletedThreads", NbtElement.LIST_TYPE)) {
-            NbtList list = nbt.getList("CompletedThreads", NbtElement.COMPOUND_TYPE);
+        if (containsType(nbt, "CompletedThreads", NbtElement.LIST_TYPE)) {
+            NbtList list = getList(nbt, "CompletedThreads");
             for (int index = 0; index < Math.min(8, list.size()); index++) {
                 try {
-                    state.restoreCompletedThread(MemoryThreadType.valueOf(list.getCompound(index).getString("Type")));
+                    state.restoreCompletedThread(MemoryThreadType.valueOf(getString(getCompound(list, index), "Type")));
                 } catch (RuntimeException exception) {
                     state.addLoadWarning("completed thread entry skipped");
                 }
             }
         }
-        if (nbt.contains("Contamination", NbtElement.COMPOUND_TYPE)) {
+        if (containsType(nbt, "Contamination", NbtElement.COMPOUND_TYPE)) {
             try {
-                state.restoreContamination(readContamination(nbt.getCompound("Contamination")));
+                state.restoreContamination(readContamination(getCompound(nbt, "Contamination")));
             } catch (RuntimeException exception) {
                 state.addLoadWarning("contamination state skipped");
             }
         }
-        if (nbt.contains("ObservationProfile", NbtElement.COMPOUND_TYPE)) {
+        if (containsType(nbt, "ObservationProfile", NbtElement.COMPOUND_TYPE)) {
             try {
-                state.restoreObservationProfile(readProfile(nbt.getCompound("ObservationProfile")));
+                state.restoreObservationProfile(readProfile(getCompound(nbt, "ObservationProfile")));
             } catch (RuntimeException exception) {
                 state.addLoadWarning("observation profile skipped");
             }
         }
-        state.restoreLastStrongEventTick(nbt.getLong("LastStrongEventTick"));
+        state.restoreLastStrongEventTick(getLong(nbt, "LastStrongEventTick"));
         readEntries(nbt, "SignificantEvents", state, PlayerMemoryStateCodec::readSignificantEvent,
                 state::restoreSignificantEvent);
         readEntries(nbt, "FalseMemorySeeds", state, PlayerMemoryStateCodec::readSeed,
@@ -145,19 +147,19 @@ public final class PlayerMemoryStateCodec {
     }
 
     private static PersistentPanicImprint readPanic(NbtCompound entry) {
-        NbtList framesNbt = entry.getList("Frames", NbtElement.COMPOUND_TYPE);
+        NbtList framesNbt = getList(entry, "Frames");
         List<PersistentFrame> frames = new ArrayList<>();
         for (int index = 0; index < Math.min(PersistentPanicImprint.MAXIMUM_FRAMES, framesNbt.size()); index++) {
-            NbtCompound frame = framesNbt.getCompound(index);
-            frames.add(new PersistentFrame(frame.getLong("TickOffset"), frame.getDouble("X"), frame.getDouble("Y"),
-                    frame.getDouble("Z"), frame.getFloat("BodyYaw"), frame.getFloat("HeadYaw"),
-                    frame.getFloat("Pitch"), frame.getBoolean("Walking"), frame.getBoolean("Sprinting"),
-                    frame.getBoolean("Sneaking"), frame.getBoolean("Swimming"), frame.getBoolean("Crawling"),
-                    frame.getBoolean("Jumping"), frame.getBoolean("OnGround")));
+            NbtCompound frame = getCompound(framesNbt, index);
+            frames.add(new PersistentFrame(getLong(frame, "TickOffset"), getDouble(frame, "X"), getDouble(frame, "Y"),
+                    getDouble(frame, "Z"), getFloat(frame, "BodyYaw"), getFloat(frame, "HeadYaw"),
+                    getFloat(frame, "Pitch"), getBoolean(frame, "Walking"), getBoolean(frame, "Sprinting"),
+                    getBoolean(frame, "Sneaking"), getBoolean(frame, "Swimming"), getBoolean(frame, "Crawling"),
+                    getBoolean(frame, "Jumping"), getBoolean(frame, "OnGround")));
         }
         return new PersistentPanicImprint(required(entry, "Dimension"),
                 PanicImprint.HealthCategory.valueOf(required(entry, "Health")),
-                PanicTriggerType.valueOf(required(entry, "Trigger")), entry.getLong("CapturedTick"), frames);
+                PanicTriggerType.valueOf(required(entry, "Trigger")), getLong(entry, "CapturedTick"), frames);
     }
 
     private static NbtList writeAudio(List<AudioResidue> residues) {
@@ -182,8 +184,8 @@ public final class PlayerMemoryStateCodec {
             throw new IllegalArgumentException("invalid sound identifier");
         }
         return new AudioResidue(sound, AudioResidueEvent.valueOf(required(entry, "Event")),
-                required(entry, "Dimension"), getBlockPos(entry), entry.getFloat("Volume"),
-                entry.getFloat("Pitch"), entry.getLong("CapturedTick"));
+                required(entry, "Dimension"), getBlockPos(entry), getFloat(entry, "Volume"),
+                getFloat(entry, "Pitch"), getLong(entry, "CapturedTick"));
     }
 
     private static NbtList writeHabits(List<PersistentHabit> habits) {
@@ -203,8 +205,8 @@ public final class PlayerMemoryStateCodec {
 
     private static PersistentHabit readHabit(NbtCompound entry) {
         return new PersistentHabit(HabitType.valueOf(required(entry, "Type")), required(entry, "Dimension"),
-                getBlockPos(entry), entry.getString("VisualItem"), entry.getInt("Observations"),
-                entry.getLong("LastSeenTick"));
+                getBlockPos(entry), getString(entry, "VisualItem"), getInt(entry, "Observations"),
+                getLong(entry, "LastSeenTick"));
     }
 
     private static NbtList writeRoomNodes(List<RoomMemoryNode> nodes) {
@@ -234,15 +236,15 @@ public final class PlayerMemoryStateCodec {
     }
 
     private static RoomMemoryNode readRoomNode(NbtCompound entry) {
-        NbtList associatedNbt = entry.getList("AssociatedBlocks", NbtElement.COMPOUND_TYPE);
+        NbtList associatedNbt = getList(entry, "AssociatedBlocks");
         List<BlockPos> associated = new ArrayList<>();
         for (int index = 0; index < Math.min(RoomMemoryNode.MAXIMUM_ASSOCIATED_BLOCKS, associatedNbt.size()); index++) {
-            associated.add(getBlockPos(associatedNbt.getCompound(index)));
+            associated.add(getBlockPos(getCompound(associatedNbt, index)));
         }
-        return new RoomMemoryNode(entry.getLong("Id"), required(entry, "Dimension"), getBlockPos(entry),
-                RoomMemoryType.valueOf(required(entry, "Type")), entry.getFloat("Confidence"),
-                entry.getInt("Visits"), entry.getLong("LastVisitedTick"), entry.getString("FamiliarLocationId"),
-                associated, RoomObservationSource.valueOf(required(entry, "Source")), entry.getBoolean("Valid"));
+        return new RoomMemoryNode(getLong(entry, "Id"), required(entry, "Dimension"), getBlockPos(entry),
+                RoomMemoryType.valueOf(required(entry, "Type")), getFloat(entry, "Confidence"),
+                getInt(entry, "Visits"), getLong(entry, "LastVisitedTick"), getString(entry, "FamiliarLocationId"),
+                associated, RoomObservationSource.valueOf(required(entry, "Source")), getBoolean(entry, "Valid"));
     }
 
     private static NbtList writeRoomEdges(List<RoomMemoryEdge> edges) {
@@ -266,16 +268,16 @@ public final class PlayerMemoryStateCodec {
     }
 
     private static RoomMemoryEdge readRoomEdge(NbtCompound entry) {
-        BlockPos transition = entry.contains("Transition", NbtElement.COMPOUND_TYPE)
-                ? getBlockPos(entry.getCompound("Transition")) : null;
-        return new RoomMemoryEdge(entry.getLong("Source"), entry.getLong("Destination"), transition,
-                entry.getInt("Count"), entry.getLong("LastUsedTick"), entry.getFloat("Confidence"),
-                entry.getDouble("Distance"));
+        BlockPos transition = containsType(entry, "Transition", NbtElement.COMPOUND_TYPE)
+                ? getBlockPos(getCompound(entry, "Transition")) : null;
+        return new RoomMemoryEdge(getLong(entry, "Source"), getLong(entry, "Destination"), transition,
+                getInt(entry, "Count"), getLong(entry, "LastUsedTick"), getFloat(entry, "Confidence"),
+                getDouble(entry, "Distance"));
     }
 
     private static NbtCompound writeThread(MemoryThread thread) {
         NbtCompound nbt = new NbtCompound();
-        nbt.putUuid("Player", thread.targetPlayerUuid());
+        putUuid(nbt, "Player", thread.targetPlayerUuid());
         nbt.putString("Type", thread.type().name());
         nbt.putLong("Room", thread.selectedRoomNodeId());
         nbt.putString("Dimension", thread.selectedDimension());
@@ -299,21 +301,21 @@ public final class PlayerMemoryStateCodec {
             steps.add(entry);
         }
         nbt.put("Steps", steps);
-        nbt.putLongArray("References", thread.eventReferences());
+        nbt.putLongArray("References", thread.eventReferences().stream().mapToLong(Long::longValue).toArray());
         return nbt;
     }
 
     private static MemoryThread readThread(NbtCompound nbt) {
-        NbtList stepsNbt = nbt.getList("Steps", NbtElement.COMPOUND_TYPE);
+        NbtList stepsNbt = getList(nbt, "Steps");
         List<MemoryThreadStep> steps = new ArrayList<>();
         for (int index = 0; index < Math.min(MemoryThread.MAXIMUM_STEPS, stepsNbt.size()); index++) {
-            NbtCompound entry = stepsNbt.getCompound(index);
-            String variantName = entry.getString("Variant");
+            NbtCompound entry = getCompound(stepsNbt, index);
+            String variantName = getString(entry, "Variant");
             ContradictionVariant variant = variantName.isBlank() ? null : ContradictionVariant.valueOf(variantName);
             steps.add(new MemoryThreadStep(MemoryThreadEventType.valueOf(required(entry, "Event")), variant,
-                    outcomes(entry.getInt("Outcomes")), entry.getBoolean("Strong")));
+                    outcomes(getInt(entry, "Outcomes")), getBoolean(entry, "Strong")));
         }
-        UUID uuid = nbt.getUuid("Player");
+        UUID uuid = getUuid(nbt, "Player");
         MemoryThreadStage restoredStage = MemoryThreadStage.valueOf(required(nbt, "Stage"));
         if (restoredStage == MemoryThreadStage.COMPLETED || restoredStage == MemoryThreadStage.CANCELLED) {
             throw new IllegalArgumentException("inactive thread cannot be restored");
@@ -321,13 +323,13 @@ public final class PlayerMemoryStateCodec {
         if (restoredStage == MemoryThreadStage.ACTIVE) {
             restoredStage = MemoryThreadStage.PAUSED;
         }
-        return new MemoryThread(uuid, MemoryThreadType.valueOf(required(nbt, "Type")), nbt.getLong("Room"),
-                nbt.getString("Dimension"), nbt.getString("Item"), steps, nbt.getLong("Created"),
-                nbt.getInt("CurrentStep"), nbt.getLong("LastEvent"),
-                MemoryObservationResult.valueOf(required(nbt, "Observation")), nbt.getFloat("Contribution"),
-                java.util.Arrays.stream(nbt.getLongArray("References")).boxed().toList(),
-                restoredStage, nbt.getInt("Failures"), true,
-                !nbt.contains("AwardsProgress") || nbt.getBoolean("AwardsProgress"));
+        return new MemoryThread(uuid, MemoryThreadType.valueOf(required(nbt, "Type")), getLong(nbt, "Room"),
+                getString(nbt, "Dimension"), getString(nbt, "Item"), steps, getLong(nbt, "Created"),
+                getInt(nbt, "CurrentStep"), getLong(nbt, "LastEvent"),
+                MemoryObservationResult.valueOf(required(nbt, "Observation")), getFloat(nbt, "Contribution"),
+                java.util.Arrays.stream(getLongArray(nbt, "References")).boxed().toList(),
+                restoredStage, getInt(nbt, "Failures"), true,
+                !nbt.contains("AwardsProgress") || getBoolean(nbt, "AwardsProgress"));
     }
 
     private static NbtCompound writeContamination(MemoryContaminationState state) {
@@ -339,8 +341,8 @@ public final class PlayerMemoryStateCodec {
     }
 
     private static MemoryContaminationState readContamination(NbtCompound nbt) {
-        return new MemoryContaminationState(nbt.getFloat("Value"), nbt.getLong("LastRecovery"),
-                nbt.getLong("LastContribution"));
+        return new MemoryContaminationState(getFloat(nbt, "Value"), getLong(nbt, "LastRecovery"),
+                getLong(nbt, "LastContribution"));
     }
 
     private static NbtCompound writeProfile(ObservationProfile profile) {
@@ -359,10 +361,10 @@ public final class PlayerMemoryStateCodec {
     private static ObservationProfile readProfile(NbtCompound nbt) {
         float[] counters = new float[ObservationMetric.values().length];
         for (ObservationMetric metric : ObservationMetric.values()) {
-            counters[metric.ordinal()] = nbt.getFloat(metric.name());
+            counters[metric.ordinal()] = getFloat(nbt, metric.name());
         }
-        return new ObservationProfile(counters, nbt.getInt("Samples"), nbt.getFloat("PreferredDistance"),
-                nbt.getInt("DistanceSamples"), nbt.getLong("LastDecay"));
+        return new ObservationProfile(counters, getInt(nbt, "Samples"), getFloat(nbt, "PreferredDistance"),
+                getInt(nbt, "DistanceSamples"), getLong(nbt, "LastDecay"));
     }
 
     private static NbtList writeSignificantEvents(List<SignificantEventRecord> events) {
@@ -381,9 +383,9 @@ public final class PlayerMemoryStateCodec {
     }
 
     private static SignificantEventRecord readSignificantEvent(NbtCompound entry) {
-        return new SignificantEventRecord(required(entry, "Event"), entry.getString("Dimension"),
-                entry.getLong("Room"), entry.getLong("Tick"),
-                MemoryObservationResult.valueOf(required(entry, "Observation")), entry.getBoolean("Strong"));
+        return new SignificantEventRecord(required(entry, "Event"), getString(entry, "Dimension"),
+                getLong(entry, "Room"), getLong(entry, "Tick"),
+                MemoryObservationResult.valueOf(required(entry, "Observation")), getBoolean(entry, "Strong"));
     }
 
     private static NbtList writeSeeds(List<FalseMemorySeed> seeds) {
@@ -401,10 +403,10 @@ public final class PlayerMemoryStateCodec {
     }
 
     private static FalseMemorySeed readSeed(NbtCompound entry) {
-        String variantName = entry.getString("Variant");
-        return new FalseMemorySeed(entry.getLong("Seed"), entry.getString("Signature"),
+        String variantName = getString(entry, "Variant");
+        return new FalseMemorySeed(getLong(entry, "Seed"), getString(entry, "Signature"),
                 variantName.isBlank() ? null : ContradictionVariant.valueOf(variantName),
-                entry.getLong("Room"), entry.getLong("Created"));
+                getLong(entry, "Room"), getLong(entry, "Created"));
     }
 
     private static int outcomeMask(Set<MemoryObservationResult> outcomes) {
@@ -432,7 +434,7 @@ public final class PlayerMemoryStateCodec {
     }
 
     private static BlockPos getBlockPos(NbtCompound nbt) {
-        return new BlockPos(nbt.getInt("X"), nbt.getInt("Y"), nbt.getInt("Z"));
+        return new BlockPos(getInt(nbt, "X"), getInt(nbt, "Y"), getInt(nbt, "Z"));
     }
 
     private static void putPosition(NbtCompound nbt, double x, double y, double z) {
@@ -442,7 +444,7 @@ public final class PlayerMemoryStateCodec {
     }
 
     private static String required(NbtCompound nbt, String key) {
-        String value = nbt.getString(key);
+        String value = getString(nbt, key);
         if (value.isBlank()) {
             throw new IllegalArgumentException("missing " + key);
         }
@@ -455,10 +457,10 @@ public final class PlayerMemoryStateCodec {
 
     private static <T> void readEntries(NbtCompound root, String key, PlayerMemoryState state,
                                         EntryReader<T> reader, java.util.function.Consumer<T> consumer) {
-        if (!root.contains(key, NbtElement.LIST_TYPE)) {
+        if (!containsType(root, key, NbtElement.LIST_TYPE)) {
             return;
         }
-        NbtList list = root.getList(key, NbtElement.COMPOUND_TYPE);
+        NbtList list = getList(root, key);
         int maximum = switch (key) {
             case "PanicImprints" -> 3;
             case "AudioResidues", "Habits" -> 16;
@@ -470,7 +472,7 @@ public final class PlayerMemoryStateCodec {
         };
         for (int index = 0; index < Math.min(maximum, list.size()); index++) {
             try {
-                consumer.accept(reader.read(list.getCompound(index)));
+                consumer.accept(reader.read(getCompound(list, index)));
             } catch (RuntimeException exception) {
                 state.addLoadWarning(key + "[" + index + "] skipped: " + simpleMessage(exception));
             }

@@ -11,6 +11,8 @@ import net.minecraft.util.math.BlockPos;
 import java.util.ArrayList;
 import java.util.List;
 
+import static dev.yeldos.echoprotocol.memory.NbtCompat.*;
+
 final class PlayerEchoStateSnapshotCodec {
     private PlayerEchoStateSnapshotCodec() {
     }
@@ -47,30 +49,30 @@ final class PlayerEchoStateSnapshotCodec {
     static DecodeResult read(NbtCompound nbt) {
         List<FamiliarLocationSnapshot> locations = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
-        if (nbt.contains("FamiliarLocations", NbtElement.LIST_TYPE)) {
-            NbtList list = nbt.getList("FamiliarLocations", NbtElement.COMPOUND_TYPE);
+        if (containsType(nbt, "FamiliarLocations", NbtElement.LIST_TYPE)) {
+            NbtList list = getList(nbt, "FamiliarLocations");
             for (int index = 0; index < Math.min(64, list.size()); index++) {
                 try {
-                    NbtCompound entry = list.getCompound(index);
+                    NbtCompound entry = getCompound(list, index);
                     locations.add(new FamiliarLocationSnapshot(
-                            FamiliarLocationType.valueOf(entry.getString("Type")),
+                            FamiliarLocationType.valueOf(getString(entry, "Type")),
                             required(entry, "Dimension"),
-                            new BlockPos(entry.getInt("X"), entry.getInt("Y"), entry.getInt("Z")),
-                            entry.getInt("Visits"), entry.getLong("LastSeenTick")));
+                            new BlockPos(getInt(entry, "X"), getInt(entry, "Y"), getInt(entry, "Z")),
+                            getInt(entry, "Visits"), getLong(entry, "LastSeenTick")));
                 } catch (RuntimeException exception) {
                     warnings.add("familiar location " + index + " skipped");
                 }
             }
         }
-        return new DecodeResult(new PlayerEchoStateSnapshot(nbt.getInt("Stage"), nbt.getLong("PlayTicks"),
-                nbt.getLong("NextEventDelay"), nbt.getLong("NextOriginalEventDelay"),
-                nbt.getInt("StageOneEvents"), nbt.getInt("TotalEvents"), nbt.getInt("MemoryEvents"),
-                nbt.getInt("CorruptedEvents"), nbt.getInt("MimicEvents"), nbt.getInt("OriginalEvents"),
-                nbt.getBoolean("MimicIndependentActionSeen"), locations), List.copyOf(warnings));
+        return new DecodeResult(new PlayerEchoStateSnapshot(getInt(nbt, "Stage"), getLong(nbt, "PlayTicks"),
+                getLong(nbt, "NextEventDelay"), getLong(nbt, "NextOriginalEventDelay"),
+                getInt(nbt, "StageOneEvents"), getInt(nbt, "TotalEvents"), getInt(nbt, "MemoryEvents"),
+                getInt(nbt, "CorruptedEvents"), getInt(nbt, "MimicEvents"), getInt(nbt, "OriginalEvents"),
+                getBoolean(nbt, "MimicIndependentActionSeen"), locations), List.copyOf(warnings));
     }
 
     private static String required(NbtCompound nbt, String key) {
-        String value = nbt.getString(key);
+        String value = getString(nbt, key);
         if (value.isBlank()) {
             throw new IllegalArgumentException("missing " + key);
         }

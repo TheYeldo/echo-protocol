@@ -747,7 +747,7 @@ public final class EchoEventDirector {
     public void observeDamage(ServerPlayerEntity player, DamageSource source, float baseDamage, boolean blocked) {
         panicImprints.observeDamage(player, source, baseDamage, blocked, EchoProtocol.config(), stageManager.tick());
         if (blocked) {
-            audioResidues.capture(player, player.getBlockPos(), SoundEvents.ITEM_SHIELD_BLOCK,
+            audioResidues.capture(player, player.getBlockPos(), SoundEvents.ITEM_SHIELD_BLOCK.value(),
                     0.4F, 0.9F, AudioResidueEvent.SHIELD, EchoProtocol.config(), stageManager.tick());
         }
     }

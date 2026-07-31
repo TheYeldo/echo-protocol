@@ -19,7 +19,7 @@ public final class PersistentMemoryManager {
 
     public void load(MinecraftServer server, EchoConfig config) {
         persistent = server.getOverworld().getPersistentStateManager()
-                .getOrCreate(PersistentEchoMemory.TYPE, PersistentEchoMemory.STORAGE_KEY);
+                .getOrCreate(PersistentEchoMemory.TYPE);
         if (persistent.readOnly()) {
             EchoProtocol.LOGGER.error("Echo Protocol beta memory is disabled for this world because data version {} "
                     + "is newer than supported version {}.", persistent.unsupportedFutureVersion(), MemoryDataVersion.CURRENT);

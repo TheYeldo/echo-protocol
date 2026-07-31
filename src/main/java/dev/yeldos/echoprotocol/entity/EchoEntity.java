@@ -38,7 +38,7 @@ import java.util.UUID;
 public final class EchoEntity extends MobEntity {
     private static final TrackedData<Float> OPACITY = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.FLOAT);
     private static final TrackedData<Boolean> SHARED = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
-    private static final TrackedData<Optional<UUID>> TARGET = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.OPTIONAL_UUID);
+    private static final TrackedData<String> TARGET = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.STRING);
     private static final TrackedData<Boolean> REPLAY_SNEAKING = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> REPLAY_SPRINTING = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> REPLAY_SWIMMING = DataTracker.registerData(EchoEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
@@ -84,7 +84,7 @@ public final class EchoEntity extends MobEntity {
         super.initDataTracker(builder);
         builder.add(OPACITY, 0.0F);
         builder.add(SHARED, false);
-        builder.add(TARGET, Optional.empty());
+        builder.add(TARGET, "");
         builder.add(REPLAY_SNEAKING, false);
         builder.add(REPLAY_SPRINTING, false);
         builder.add(REPLAY_SWIMMING, false);
@@ -95,7 +95,7 @@ public final class EchoEntity extends MobEntity {
 
     public void configure(UUID targetUuid, boolean shared, List<RecordedFrame> frames, int sampleIntervalTicks,
                           EchoConfig config, EchoEventContext context, EchoBehaviorController behavior) {
-        this.dataTracker.set(TARGET, Optional.of(targetUuid));
+        this.dataTracker.set(TARGET, targetUuid.toString());
         this.dataTracker.set(SHARED, shared);
         this.context = context;
         this.behavior = behavior;
@@ -448,7 +448,7 @@ public final class EchoEntity extends MobEntity {
     }
 
     public boolean visibleTo(UUID viewerUuid) {
-        return dataTracker.get(TARGET)
+        return getTargetUuid()
                 .map(target -> EchoPrivacy.mayReceiveVisual(dataTracker.get(SHARED), target, viewerUuid))
                 .orElse(false);
     }
@@ -459,7 +459,15 @@ public final class EchoEntity extends MobEntity {
     }
 
     public Optional<UUID> getTargetUuid() {
-        return dataTracker.get(TARGET);
+        String encoded = dataTracker.get(TARGET);
+        if (encoded.isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(UUID.fromString(encoded));
+        } catch (IllegalArgumentException invalidUuid) {
+            return Optional.empty();
+        }
     }
 
     public float getReplayOpacity() {

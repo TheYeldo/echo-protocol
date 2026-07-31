@@ -54,7 +54,7 @@ public record RecordedFrame(
                 jumping,
                 mainSwing,
                 offSwing,
-                player.getInventory().selectedSlot,
+                player.getInventory().getSelectedSlot(),
                 held,
                 player.isOnGround()
         );

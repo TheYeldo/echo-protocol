@@ -65,7 +65,7 @@ class PlayerMemoryStateCodecTest {
         state.restoreAudio(new AudioResidue(Identifier.of("minecraft", "block.wooden_door.open"),
                 AudioResidueEvent.DOOR, "minecraft:overworld", BlockPos.ORIGIN, 0.3F, 0.8F, 1L));
         NbtCompound encoded = PlayerMemoryStateCodec.write(state);
-        NbtList audio = encoded.getList("AudioResidues", net.minecraft.nbt.NbtElement.COMPOUND_TYPE);
+        NbtList audio = NbtCompat.getList(encoded, "AudioResidues");
         NbtCompound malformed = new NbtCompound();
         malformed.putString("Sound", "%%%bad%%%");
         audio.add(malformed);
@@ -83,7 +83,7 @@ class PlayerMemoryStateCodecTest {
         root.putInt("DataVersion", 1);
         NbtList players = new NbtList();
         NbtCompound valid = new NbtCompound();
-        valid.putUuid("Uuid", uuid);
+        NbtCompat.putUuid(valid, "Uuid", uuid);
         valid.put("Memory", PlayerMemoryStateCodec.write(new PlayerMemoryState()));
         players.add(valid);
         players.add(new NbtCompound());
@@ -102,7 +102,7 @@ class PlayerMemoryStateCodecTest {
         root.putInt("DataVersion", MemoryDataVersion.CURRENT + 5);
         root.putString("FutureOnly", "preserve-me");
         NbtCompound entry = new NbtCompound();
-        entry.putUuid("Uuid", uuid);
+        NbtCompat.putUuid(entry, "Uuid", uuid);
         entry.put("Stage", PlayerEchoStateSnapshotCodec.write(new dev.yeldos.echoprotocol.stage.PlayerEchoStateSnapshot(
                 3, 400L, 2L, 3L, 1, 2, 3, 4, 5, 6, true, List.of())));
         NbtList players = new NbtList();
@@ -114,7 +114,7 @@ class PlayerMemoryStateCodecTest {
 
         assertTrue(restored.readOnly());
         assertEquals(3, restored.record(uuid).stage().stage());
-        assertEquals("preserve-me", written.getString("FutureOnly"));
+        assertEquals("preserve-me", NbtCompat.getString(written, "FutureOnly"));
     }
 
     private static RoomObservation observation(String dimension, int x, RoomMemoryType type, long tick) {

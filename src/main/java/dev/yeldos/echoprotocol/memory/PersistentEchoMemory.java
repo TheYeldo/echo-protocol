@@ -1,5 +1,6 @@
 package dev.yeldos.echoprotocol.memory;
 
+import com.mojang.serialization.Codec;
 import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.stage.PlayerEchoStateSnapshot;
 import net.minecraft.datafixer.DataFixTypes;
@@ -8,16 +9,21 @@ import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.world.PersistentState;
+import net.minecraft.world.PersistentStateType;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static dev.yeldos.echoprotocol.memory.NbtCompat.*;
+
 public final class PersistentEchoMemory extends PersistentState {
     public static final String STORAGE_KEY = "echo_protocol_memory";
-    public static final Type<PersistentEchoMemory> TYPE = new Type<>(PersistentEchoMemory::new,
-            PersistentEchoMemory::fromNbt, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+    private static final Codec<PersistentEchoMemory> CODEC = NbtCompound.CODEC.xmap(
+            PersistentEchoMemory::fromNbt, PersistentEchoMemory::toNbt);
+    public static final PersistentStateType<PersistentEchoMemory> TYPE = new PersistentStateType<>(STORAGE_KEY,
+            PersistentEchoMemory::new, CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 
     private final Map<UUID, PlayerRecord> players = new LinkedHashMap<>();
     private boolean legacyImported;
@@ -27,9 +33,9 @@ public final class PersistentEchoMemory extends PersistentState {
     public PersistentEchoMemory() {
     }
 
-    static PersistentEchoMemory fromNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+    private static PersistentEchoMemory fromNbt(NbtCompound nbt) {
         PersistentEchoMemory memory = new PersistentEchoMemory();
-        int version = nbt.contains("DataVersion", NbtElement.NUMBER_TYPE) ? nbt.getInt("DataVersion") : 1;
+        int version = nbt.getInt("DataVersion").orElse(1);
         if (version > MemoryDataVersion.CURRENT) {
             memory.unsupportedFutureVersion = version;
             memory.futureData = nbt.copy();
@@ -38,20 +44,20 @@ public final class PersistentEchoMemory extends PersistentState {
                     + "beta memory will remain read-only.", version, MemoryDataVersion.CURRENT);
             return memory;
         }
-        memory.legacyImported = nbt.getBoolean("LegacyImported");
-        if (!nbt.contains("Players", NbtElement.LIST_TYPE)) {
+        memory.legacyImported = getBoolean(nbt, "LegacyImported");
+        if (!containsType(nbt, "Players", NbtElement.LIST_TYPE)) {
             return memory;
         }
-        NbtList list = nbt.getList("Players", NbtElement.COMPOUND_TYPE);
+        NbtList list = getList(nbt, "Players");
         for (int index = 0; index < list.size(); index++) {
             try {
-                NbtCompound entry = list.getCompound(index);
-                UUID uuid = entry.getUuid("Uuid");
-                PlayerEchoStateSnapshotCodec.DecodeResult stageResult = entry.contains("Stage", NbtElement.COMPOUND_TYPE)
-                        ? PlayerEchoStateSnapshotCodec.read(entry.getCompound("Stage"))
+                NbtCompound entry = getCompound(list, index);
+                UUID uuid = getUuid(entry, "Uuid");
+                PlayerEchoStateSnapshotCodec.DecodeResult stageResult = containsType(entry, "Stage", NbtElement.COMPOUND_TYPE)
+                        ? PlayerEchoStateSnapshotCodec.read(getCompound(entry, "Stage"))
                         : new PlayerEchoStateSnapshotCodec.DecodeResult(PlayerEchoStateSnapshot.empty(), List.of());
-                PlayerMemoryState playerMemory = entry.contains("Memory", NbtElement.COMPOUND_TYPE)
-                        ? PlayerMemoryStateCodec.read(entry.getCompound("Memory")) : new PlayerMemoryState();
+                PlayerMemoryState playerMemory = containsType(entry, "Memory", NbtElement.COMPOUND_TYPE)
+                        ? PlayerMemoryStateCodec.read(getCompound(entry, "Memory")) : new PlayerMemoryState();
                 stageResult.warnings().forEach(playerMemory::addLoadWarning);
                 memory.players.put(uuid, memory.bind(new PlayerRecord(stageResult.snapshot(), playerMemory)));
             } catch (PlayerMemoryStateCodec.UnsupportedMemoryVersionException exception) {
@@ -64,7 +70,6 @@ public final class PersistentEchoMemory extends PersistentState {
         return memory;
     }
 
-    @Override
     public NbtCompound writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         if (futureData != null) {
             return nbt.copyFrom(futureData);
@@ -74,13 +79,21 @@ public final class PersistentEchoMemory extends PersistentState {
         NbtList list = new NbtList();
         for (Map.Entry<UUID, PlayerRecord> player : players.entrySet()) {
             NbtCompound entry = new NbtCompound();
-            entry.putUuid("Uuid", player.getKey());
+            putUuid(entry, "Uuid", player.getKey());
             entry.put("Stage", PlayerEchoStateSnapshotCodec.write(player.getValue().stage()));
             entry.put("Memory", PlayerMemoryStateCodec.write(player.getValue().memory()));
             list.add(entry);
         }
         nbt.put("Players", list);
         return nbt;
+    }
+
+    static PersistentEchoMemory fromNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+        return fromNbt(nbt);
+    }
+
+    private NbtCompound toNbt() {
+        return writeNbt(new NbtCompound(), null);
     }
 
     public PlayerRecord getOrCreate(UUID uuid, float initialContamination) {
@@ -143,16 +156,16 @@ public final class PersistentEchoMemory extends PersistentState {
     }
 
     private void loadKnownStageSnapshots(NbtCompound nbt) {
-        if (!nbt.contains("Players", NbtElement.LIST_TYPE)) {
+        if (!containsType(nbt, "Players", NbtElement.LIST_TYPE)) {
             return;
         }
-        NbtList list = nbt.getList("Players", NbtElement.COMPOUND_TYPE);
+        NbtList list = getList(nbt, "Players");
         for (int index = 0; index < list.size(); index++) {
             try {
-                NbtCompound entry = list.getCompound(index);
-                UUID uuid = entry.getUuid("Uuid");
-                PlayerEchoStateSnapshot stage = entry.contains("Stage", NbtElement.COMPOUND_TYPE)
-                        ? PlayerEchoStateSnapshotCodec.read(entry.getCompound("Stage")).snapshot()
+                NbtCompound entry = getCompound(list, index);
+                UUID uuid = getUuid(entry, "Uuid");
+                PlayerEchoStateSnapshot stage = containsType(entry, "Stage", NbtElement.COMPOUND_TYPE)
+                        ? PlayerEchoStateSnapshotCodec.read(getCompound(entry, "Stage")).snapshot()
                         : PlayerEchoStateSnapshot.empty();
                 players.put(uuid, new PlayerRecord(stage, new PlayerMemoryState()));
             } catch (RuntimeException exception) {

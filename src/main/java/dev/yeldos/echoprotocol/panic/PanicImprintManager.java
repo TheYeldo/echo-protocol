@@ -65,7 +65,7 @@ public final class PanicImprintManager {
             if (drowning && !wasDrowning.getOrDefault(uuid, false)) {
                 capture(player, PanicTriggerType.DROWNING, config, tick, false);
             }
-            float maxFall = Math.max(maximumFall.getOrDefault(uuid, 0.0F), player.fallDistance);
+            float maxFall = Math.max(maximumFall.getOrDefault(uuid, 0.0F), (float) player.fallDistance);
             if (player.isOnGround() && maxFall >= 8.0F && health > 0.0F) {
                 capture(player, PanicTriggerType.LARGE_FALL, config, tick, false);
                 maxFall = 0.0F;
