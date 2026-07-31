@@ -8,7 +8,7 @@ import dev.yeldos.echoprotocol.memory.PersistentPanicImprint;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.HostileEntity;
-import net.minecraft.util.UseAction;
+import net.minecraft.item.consume.UseAction;
 import net.minecraft.registry.tag.DamageTypeTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;

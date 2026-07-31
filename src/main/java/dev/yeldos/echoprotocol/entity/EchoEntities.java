@@ -8,17 +8,23 @@ import net.minecraft.entity.SpawnGroup;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.util.Identifier;
 
 public final class EchoEntities {
+    private static final Identifier ECHO_ID = EchoProtocol.id("echo");
+    private static final RegistryKey<EntityType<?>> ECHO_KEY = RegistryKey.of(RegistryKeys.ENTITY_TYPE, ECHO_ID);
+
     public static final EntityType<EchoEntity> ECHO = Registry.register(
             Registries.ENTITY_TYPE,
-            EchoProtocol.id("echo"),
+            ECHO_ID,
             EntityType.Builder.create(EchoEntity::new, SpawnGroup.MISC)
                     .dimensions(0.6F, 1.8F)
                     .disableSaving()
                     .maxTrackingRange(64)
                     .trackingTickInterval(1)
-                    .build("echo")
+                    .build(ECHO_KEY)
     );
 
     private EchoEntities() {
@@ -26,7 +32,7 @@ public final class EchoEntities {
 
     public static void register() {
         FabricDefaultAttributeRegistry.register(ECHO, EchoEntity.createMobAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, 1.0D)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.0D));
+                .add(EntityAttributes.MAX_HEALTH, 1.0D)
+                .add(EntityAttributes.MOVEMENT_SPEED, 0.0D));
     }
 }
