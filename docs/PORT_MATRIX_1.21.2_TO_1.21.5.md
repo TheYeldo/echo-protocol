@@ -15,13 +15,17 @@ The shared artifact is one unchanged compiled JAR. That exact SHA-256 was run on
 
 ## Verification status
 
-| Target | Automated tests | Build | Dedicated server | Client/menu/world | Gameplay smoke | Persistence restart | Real two-client privacy | Overall |
-|---|---|---|---|---|---|---|---|---|
-| 1.21.2 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | PARTIALLY VERIFIED | PARTIALLY VERIFIED | NOT TESTED | PARTIALLY VERIFIED |
-| 1.21.3 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | PARTIALLY VERIFIED | NOT TESTED | NOT TESTED | PARTIALLY VERIFIED |
-| 1.21.4 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | PARTIALLY VERIFIED | PARTIALLY VERIFIED | NOT TESTED | PARTIALLY VERIFIED |
-| 1.21.5 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | PARTIALLY VERIFIED | VERIFIED | NOT TESTED | PARTIALLY VERIFIED |
+| Target | Automated tests | Build | Dedicated server | Client/menu/world | Gameplay | Restart persistence | Two-client privacy | Performance/log | Upload readiness |
+|---|---|---|---|---|---|---|---|---|---|
+| 1.21.2 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | PARTIALLY VERIFIED | PARTIALLY VERIFIED | PARTIALLY VERIFIED | PARTIALLY VERIFIED | VERIFIED |
+| 1.21.3 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED |
+| 1.21.4 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | NOT TESTED | NOT TESTED | VERIFIED |
+| 1.21.5 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED |
 
-Every server reached `Done`, registered Echo Protocol commands, loaded advancements/resources, applied the critical server entity-tracking mixin, and stopped cleanly. Every real Fabric client reached the menu and loaded a world. The 1.21.5 dedicated test also connected a real client, spawned tracked Echo entities, and verified persistent state after a clean restart.
+Every server reached `Done`, registered Echo Protocol commands, loaded advancements/resources, applied the critical server entity-tracking mixin, and stopped cleanly. Every real Fabric client reached the menu and loaded a world.
 
-`PARTIALLY VERIFIED` means representative live behavior was exercised, but the complete manual visual/gameplay and real two-client recipient audit requested for release acceptance was not performed. These artifacts are therefore build candidates, not yet approved for public upload.
+The exact shared artifact was launched on both 1.21.2 and 1.21.3. Release-critical gameplay, restart, privacy, and short performance checks for that unchanged artifact were performed on 1.21.3, while 1.21.2 retained its earlier direct startup/world and Memory Echo checks. The 1.21.2 row is intentionally not upgraded to direct per-version verification for checks run only on 1.21.3.
+
+Real two-client recipient tests used separate target and observer clients on 1.21.3 and 1.21.5. Client packet-handler instrumentation confirmed that with `shared_echoes=false` the observer received no private Echo spawn/movement, particles, sounds, text, or Echo Protocol custom payload; player-owned memory metadata remained server-side and separated by UUID. With `shared_echoes=true`, the observer received the intentionally shared Echo visual while private particles and metadata remained private. Disconnects did not cancel the other player's event or corrupt their state.
+
+The required reduced gameplay matrix and restart checks passed. The performance result is a short controlled runtime/log inspection, not a formal benchmark: no post-`Done` server warnings/errors, repeated exceptions, `Can't keep up` messages, retained Echo entities, stuck locks, or unbounded state growth were observed on 1.21.3 or 1.21.5. All three artifacts meet this batch's stated upload-readiness criteria.
