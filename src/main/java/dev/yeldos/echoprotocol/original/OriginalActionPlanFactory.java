@@ -55,8 +55,9 @@ public final class OriginalActionPlanFactory {
                 waitObserved(12, 120),
                 timed(OriginalAction.LOOK_AT_PLAYER, null, 20, 34, OriginalPauseReason.WATCHING),
                 move(OriginalAction.FAST_WALK, destination, 180),
+                timed(OriginalAction.PLACE_BLOCK, destination, 8, 14, OriginalPauseReason.EXAMINING),
                 timed(OriginalAction.LOOK_AT_PLAYER, null, 10, 18, OriginalPauseReason.WATCHING),
-                move(OriginalAction.WALK, exit, 180),
+                move(OriginalAction.FAST_WALK, exit, 180),
                 waitUnobserved(15, 60),
                 disappear());
     }
@@ -65,12 +66,13 @@ public final class OriginalActionPlanFactory {
         Vec3d crossing = midpoint(player.getPos(), bedSide);
         return plan(
                 rotate(bedSide),
-                move(OriginalAction.SLOW_WALK, bedSide, 180),
+                move(OriginalAction.FAST_WALK, bedSide, 180),
                 timed(OriginalAction.LOOK_AT_ANCHOR, bedSide, 18, 30, OriginalPauseReason.EXAMINING),
+                timed(OriginalAction.PLACE_BLOCK, bedSide, 8, 14, OriginalPauseReason.EXAMINING),
                 timed(OriginalAction.CROUCH, bedSide, 35, 65, OriginalPauseReason.CLAIMING_SPACE),
                 timed(OriginalAction.LOOK_AT_PLAYER, null, 28, 50, OriginalPauseReason.WATCHING),
-                move(OriginalAction.WALK, crossing, 120),
-                move(OriginalAction.WALK, exit, 180),
+                move(OriginalAction.APPROACH, crossing, 120),
+                move(OriginalAction.FAST_WALK, exit, 180),
                 waitUnobserved(12, 50),
                 disappear());
     }
@@ -113,12 +115,12 @@ public final class OriginalActionPlanFactory {
     private static OriginalActionPlan waiting(Vec3d crossing, Vec3d exit) {
         return plan(
                 waitObserved(12, 120),
-                pause(25, 48, OriginalPauseReason.WAITING_TO_BE_NOTICED, false),
-                move(OriginalAction.SLOW_WALK, crossing, 180),
+                timed(OriginalAction.LOOK_AT_PLAYER, null, 14, 26, OriginalPauseReason.WATCHING),
+                move(OriginalAction.WALK, crossing, 180),
+                timed(OriginalAction.PLACE_BLOCK, crossing, 8, 14, OriginalPauseReason.EXAMINING),
                 pause(28, 50, OriginalPauseReason.BLOCKING_ROUTE, true),
-                move(OriginalAction.RETREAT, exit, 160),
+                move(OriginalAction.FAST_WALK, exit, 160),
                 timed(OriginalAction.LOOK_AT_PLAYER, null, 12, 22, OriginalPauseReason.WATCHING),
-                move(OriginalAction.WALK, exit, 140),
                 disappear());
     }
 
@@ -126,6 +128,7 @@ public final class OriginalActionPlanFactory {
         return plan(
                 rotate(doorway),
                 move(OriginalAction.WALK, doorway, 150),
+                timed(OriginalAction.SWING_HAND, doorway, 8, 14, OriginalPauseReason.EXAMINING),
                 move(OriginalAction.FAST_WALK, roomInterior, 180),
                 waitUnobserved(8, 80),
                 disappear());
@@ -135,8 +138,9 @@ public final class OriginalActionPlanFactory {
         return plan(
                 timed(OriginalAction.LOOK_AT_PLAYER, null, 18, 24, OriginalPauseReason.CONFRONTING),
                 move(OriginalAction.APPROACH, null, 180),
+                timed(OriginalAction.SWING_HAND, null, 8, 14, OriginalPauseReason.CONFRONTING),
                 pause(45, 85, OriginalPauseReason.CONFRONTING, true),
-                move(OriginalAction.RETREAT, exit, 180),
+                move(OriginalAction.FAST_WALK, exit, 180),
                 timed(OriginalAction.LOOK_AT_PLAYER, null, 12, 20, OriginalPauseReason.WATCHING),
                 waitUnobserved(15, 60),
                 disappear());

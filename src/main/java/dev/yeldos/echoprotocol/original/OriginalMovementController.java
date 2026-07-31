@@ -111,7 +111,9 @@ public final class OriginalMovementController {
             return blockedAttempts >= 2 ? OriginalMovementResult.STUCK : OriginalMovementResult.BLOCKED;
         }
 
-        echo.moveOriginalStep(step, action == OriginalAction.FAST_WALK);
+        boolean running = action == OriginalAction.FAST_WALK || action == OriginalAction.APPROACH
+                || (action == OriginalAction.RETREAT && currentSpeed > config.originalWalkSpeed());
+        echo.moveOriginalStep(step, running);
         if (stuckTracker.tick(echo.getPos(), config.originalStuckWindowTicks(),
                 config.originalStuckMinimumProgress())) {
             replanCount++;
@@ -142,7 +144,8 @@ public final class OriginalMovementController {
         return switch (action) {
             case SLOW_WALK -> config.originalSlowWalkSpeed();
             case FAST_WALK -> config.originalFastWalkSpeed();
-            case RETREAT -> config.originalSlowWalkSpeed();
+            case APPROACH -> Math.max(config.originalWalkSpeed(), config.originalFastWalkSpeed() * 0.92D);
+            case RETREAT -> Math.max(config.originalWalkSpeed(), config.originalFastWalkSpeed() * 0.86D);
             default -> config.originalWalkSpeed();
         };
     }

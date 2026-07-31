@@ -1,4 +1,4 @@
-# Echo Protocol 0.5.0-beta.1 verification
+# Echo Protocol 0.5.0-beta.2 verification
 
 Legend: `automated` is a meaningful assertion in `src/test`; `dedicated-server runtime`, `real client`, and `two-client` require those real processes. Source review, mocks, a build, and a one-client launch are never promoted to a stronger label.
 
@@ -19,7 +19,7 @@ Legend: `automated` is a meaningful assertion in `src/test`; `dedicated-server r
 | Event Director 3.0 | automated for pure selectors; source audit | Thread-first success/failure semantics and active lock audited; world safety gates need runtime matrix |
 | The Original context | source audit | Uses loaded room/Panic/audio anchors and existing movement controller; client action-plan verification pending |
 | Disconnect/death/dimension cleanup | source audit | UUID-scoped managers, thread pause, recording/entity/in-flight cleanup; runtime scenarios pending |
-| Dedicated server | dedicated-server runtime | Final-code beta reached `Done (1.459s)` and stopped cleanly with `stop`; a later Mojang public-key request timed out without stopping the server |
+| Dedicated server | dedicated-server runtime | Beta.2 loaded as `echoprotocol 0.5.0-beta.2`, reached `Done (1.460s)`, and stopped cleanly with `stop` |
 | Linux client | real client (partial) | Java 21 client initialized the renderer, OpenAL, atlases, and Echo Protocol resources without a crash; integrated-world gameplay was not run |
 | Two-client privacy | not fully verified | Requires two real connected clients under both sharing settings |
 | Persistence restart sequence | not fully verified | Automated codecs are complete; real 0.4.1 → beta disposable-world sequence remains separate |
@@ -40,9 +40,9 @@ Admin-created threads, admin advances, and forced contradictions carry `awardsPr
 
 ## Runtime checklist
 
-- `./gradlew clean test`: passed, 49 tests, 0 failures/errors/skips.
+- `./gradlew test`: passed, 50 tests, 0 failures/errors/skips.
 - `./gradlew clean build`: passed; remapped release and sources JARs generated.
-- Dedicated server `Done` / clean `stop`: passed on the current beta runtime.
+- Dedicated server `Done` / clean `stop`: passed on beta.2 with Fabric Loader 0.16.14 and Fabric API 0.116.13+1.21.1.
 - Linux client common/resource initialization: passed on the current beta runtime; the process was closed after resource loading.
 - Integrated world and dedicated connection: not verified. A quick-play connection attempt produced no joined player on the server and is not counted as a pass.
 - Real 0.4.1 migration plus beta restart: pending.

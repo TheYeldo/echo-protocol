@@ -16,7 +16,7 @@ The pure suite must assert codecs/migration/malformed isolation, graph operation
 ## Disposable persistence sequence
 
 1. Start a disposable world with 0.4.1-alpha and establish Stage/familiar data.
-2. Stop cleanly, install 0.5.0-beta.1, and verify the legacy file remains untouched.
+2. Stop cleanly, install 0.5.0-beta.2, and verify the legacy file remains untouched.
 3. Create room nodes/edges, a habit, Panic Imprint, Audio Residue, active thread, contamination, and profile samples.
 4. Stop and restart cleanly; use `memory status`, `rooms`, `threads`, and `validate`.
 5. Complete a persisted-context event and verify `Not Forgotten`; confirm no duplicate entities or stale active lock.

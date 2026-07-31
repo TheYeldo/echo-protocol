@@ -126,6 +126,34 @@ class EchoConfigTest {
         assertTrue(read(path).get("future_option").getAsBoolean());
     }
 
+    @Test
+    void legacyOriginalDefaultSpeedsUpgradeButCustomSpeedsRemainIntentional() throws IOException {
+        Path legacy = directory.resolve("legacy-speeds.json");
+        Files.writeString(legacy, "{\"original_walk_speed\":0.09,\"original_slow_walk_speed\":0.065,"
+                + "\"original_fast_walk_speed\":0.13,\"original_maximum_speed\":0.16,"
+                + "\"original_acceleration\":0.012,\"original_deceleration\":0.018}");
+
+        EchoConfig upgraded = EchoConfig.load(legacy);
+
+        assertEquals(0.12F, upgraded.originalWalkSpeed());
+        assertEquals(0.075F, upgraded.originalSlowWalkSpeed());
+        assertEquals(0.235F, upgraded.originalFastWalkSpeed());
+        assertEquals(0.27F, upgraded.originalMaximumSpeed());
+        assertEquals(0.020F, upgraded.originalAcceleration());
+        assertEquals(0.028F, upgraded.originalDeceleration());
+
+        Path custom = directory.resolve("custom-speeds.json");
+        Files.writeString(custom, "{\"original_walk_speed\":0.11,\"original_slow_walk_speed\":0.06,"
+                + "\"original_fast_walk_speed\":0.18,\"original_maximum_speed\":0.22}");
+
+        EchoConfig preserved = EchoConfig.load(custom);
+
+        assertEquals(0.11F, preserved.originalWalkSpeed());
+        assertEquals(0.06F, preserved.originalSlowWalkSpeed());
+        assertEquals(0.18F, preserved.originalFastWalkSpeed());
+        assertEquals(0.22F, preserved.originalMaximumSpeed());
+    }
+
     private static JsonObject read(Path path) throws IOException {
         return JsonParser.parseString(Files.readString(path)).getAsJsonObject();
     }

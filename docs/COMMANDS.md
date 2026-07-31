@@ -2,6 +2,8 @@
 
 Every command below requires permission level 2. Spawn commands return success only after the sound was sent or every required entity was accepted by the world. Typical honest failures include a disabled feature, missing authentic recording, missing room, active event, incompatible dimension, unsafe or unloaded spawn, unavailable contradiction, or insufficient samples.
 
+Forced Original event and movement-test commands prefer a safe visible reveal in front of the target. To verify beta.2 interactions, hold a placeable block, record a hand swing, and replay it; or run `waiting`, `your_bed`, and `confrontation` beside a closed door. Door/block reactions are target-only visuals and restore without editing the world.
+
 ## Beta memory
 
 ```text

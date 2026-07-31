@@ -90,7 +90,40 @@ public final class SafeEchoPositionFinder {
         return Optional.empty();
     }
 
+    /**
+     * Administrative event commands should demonstrate the behavior, not hide the initial reveal. This finder keeps
+     * the spawn in a clear forward cone while retaining the normal floor, distance, chunk and hazard checks.
+     */
+    public static Optional<Vec3d> findVisibleOriginalStart(ServerWorld world, ServerPlayerEntity target,
+                                                           EchoConfig config) {
+        Vec3d look = target.getRotationVec(1.0F).multiply(1.0D, 0.0D, 1.0D);
+        if (look.lengthSquared() < 0.01D) {
+            look = new Vec3d(0.0D, 0.0D, 1.0D);
+        }
+        look = look.normalize();
+        double minimum = Math.max(3.5D, config.minimumEchoSpawnDistance());
+        double maximum = Math.min(8.0D, config.maximumEchoSpawnDistance());
+        maximum = Math.max(minimum, maximum);
+        double[] angles = {0.0D, -0.28D, 0.28D, -0.52D, 0.52D, -0.78D, 0.78D};
+        for (int ring = 0; ring < 3; ring++) {
+            double distance = MathHelper.lerp(ring / 2.0D, minimum, maximum);
+            for (double angle : angles) {
+                Vec3d candidate = dropToGround(world, target.getPos().add(rotateY(look, angle).multiply(distance)));
+                if (isValid(world, target, candidate, config, true, false)
+                        && hasClearBlockLine(world, target, target.getEyePos(), candidate.add(0.0D, 1.25D, 0.0D))) {
+                    return Optional.of(candidate);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
     public static boolean isValid(ServerWorld world, ServerPlayerEntity target, Vec3d pos, EchoConfig config, boolean requireFloor) {
+        return isValid(world, target, pos, config, requireFloor, true);
+    }
+
+    private static boolean isValid(ServerWorld world, ServerPlayerEntity target, Vec3d pos, EchoConfig config,
+                                   boolean requireFloor, boolean avoidCentralView) {
         BlockPos blockPos = BlockPos.ofFloored(pos);
         if (!world.isChunkLoaded(blockPos)) {
             return false;
@@ -101,7 +134,8 @@ public final class SafeEchoPositionFinder {
             return false;
         }
         Vec3d toCandidate = pos.add(0.0D, 1.0D, 0.0D).subtract(target.getEyePos());
-        if (toCandidate.lengthSquared() > 0.001D && target.getRotationVec(1.0F).normalize().dotProduct(toCandidate.normalize()) > 0.92D
+        if (avoidCentralView && toCandidate.lengthSquared() > 0.001D
+                && target.getRotationVec(1.0F).normalize().dotProduct(toCandidate.normalize()) > 0.92D
                 && hasClearBlockLine(world, target, target.getEyePos(), pos.add(0.0D, 1.0D, 0.0D))) {
             return false;
         }

@@ -740,7 +740,7 @@ public record EchoConfig(
                     true, 3, 25,
                     true, 12,
                     true, true, 12, 20, 8,
-                    0.09F, 0.065F, 0.13F, 0.16F, 0.012F, 0.018F,
+                    0.12F, 0.075F, 0.235F, 0.27F, 0.020F, 0.028F,
                     12.0F, 18.0F, 0.38F, 3.0F, 12.0F, 5,
                     25, 0.20F, 3, 8, 14, 16, 70);
         }
@@ -748,10 +748,16 @@ public record EchoConfig(
         V04Settings validate() {
             int minPrefix = clamp(falseMemoryMinimumRealPrefixSeconds, 2, 60);
             int maxPrefix = clamp(Math.max(falseMemoryMaximumRealPrefixSeconds, minPrefix), minPrefix, 120);
-            float maximumSpeed = clampFloat(originalMaximumSpeed, 0.06F, 0.24F);
-            float walkSpeed = clampFloat(originalWalkSpeed, 0.03F, maximumSpeed);
-            float slowSpeed = clampFloat(originalSlowWalkSpeed, 0.02F, walkSpeed);
-            float fastSpeed = clampFloat(originalFastWalkSpeed, walkSpeed, maximumSpeed);
+            boolean legacyDefaultSpeeds = approximately(originalWalkSpeed, 0.09F)
+                    && approximately(originalSlowWalkSpeed, 0.065F)
+                    && approximately(originalFastWalkSpeed, 0.13F)
+                    && approximately(originalMaximumSpeed, 0.16F);
+            float requestedMaximum = legacyDefaultSpeeds ? 0.27F : originalMaximumSpeed;
+            float maximumSpeed = clampFloat(requestedMaximum, 0.06F, 0.36F);
+            float walkSpeed = clampFloat(legacyDefaultSpeeds ? 0.12F : originalWalkSpeed, 0.03F, maximumSpeed);
+            float slowSpeed = clampFloat(legacyDefaultSpeeds ? 0.075F : originalSlowWalkSpeed, 0.02F, walkSpeed);
+            float fastSpeed = clampFloat(legacyDefaultSpeeds ? 0.235F : originalFastWalkSpeed,
+                    walkSpeed, maximumSpeed);
             float minimumMovement = clampFloat(originalMinimumMovementDistance, 2.5F, 8.0F);
             float maximumMovement = clampFloat(Math.max(originalMaximumMovementDistance, minimumMovement),
                     minimumMovement, 16.0F);
@@ -786,8 +792,10 @@ public record EchoConfig(
                     slowSpeed,
                     fastSpeed,
                     maximumSpeed,
-                    clampFloat(originalAcceleration, 0.002F, 0.05F),
-                    clampFloat(originalDeceleration, 0.002F, 0.08F),
+                    clampFloat(legacyDefaultSpeeds && approximately(originalAcceleration, 0.012F)
+                            ? 0.020F : originalAcceleration, 0.002F, 0.05F),
+                    clampFloat(legacyDefaultSpeeds && approximately(originalDeceleration, 0.018F)
+                            ? 0.028F : originalDeceleration, 0.002F, 0.08F),
                     clampFloat(originalBodyTurnSpeedDegrees, 2.0F, 30.0F),
                     clampFloat(originalHeadTurnSpeedDegrees, 4.0F, 45.0F),
                     clampFloat(originalArrivalRadius, 0.20F, 0.75F),
@@ -801,6 +809,10 @@ public record EchoConfig(
                     clamp(originalUnobservedGraceTicks, 6, 60),
                     minimumPause,
                     clamp(Math.max(originalMaximumPauseTicks, minimumPause), minimumPause, 200));
+        }
+
+        private static boolean approximately(float left, float right) {
+            return Math.abs(left - right) < 0.00001F;
         }
 
         static V04Settings fromRaw(Raw raw, V04Settings defaults) {

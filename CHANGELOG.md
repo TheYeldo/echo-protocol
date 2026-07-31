@@ -1,3 +1,24 @@
+# Echo Protocol v0.5.0-beta.2 — Visible Intent
+
+## Fixed
+
+- Forced `waiting`, `confrontation`, and `your_bed` demonstrations now prefer a safe, line-of-sight position in the player's forward cone instead of silently revealing behind the player or at a distant remembered anchor.
+- The Original starts visibly, reaches full opacity in 12 ticks, and no longer spends the opening seconds at nearly invisible opacity.
+- Closed doors no longer make an otherwise safe Original route fail or fall back immediately.
+- The legacy default Original speed profile migrates to distinct walking and sprinting speeds; custom speed values remain unchanged.
+
+## Improved
+
+- `waiting`, `confrontation`, `your_bed`, `already_home`, and `empty_room` now use stronger action plans with visible running transitions, head/body intent, hand gestures, approaches, retreats, and bounded spectral placement beats.
+- Every moving Echo can produce a target-only visual door opening while crossing a closed door. Replayed block-use swings can produce a short-lived target-only spectral block.
+- Spectral door and block reactions use client block-update packets and restore from authoritative server state. They do not alter blocks, inventories, containers, saves, or other players' view of private Echoes.
+- Movement tests and status output retain the existing bounded route, stuck recovery, cleanup, and privacy rules.
+
+## Verification
+
+- Java 21 compilation and 50 pure/regression tests pass.
+- Real-client visual confirmation of door model synchronization, spectral placement timing, and every Original event remains required before promoting this beta.
+
 # Echo Protocol v0.5.0-beta.1 — The House Remembers
 
 > You were never the only thing being recorded.

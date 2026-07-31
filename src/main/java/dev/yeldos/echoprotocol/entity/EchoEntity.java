@@ -5,6 +5,7 @@ import dev.yeldos.echoprotocol.echo.EchoBehaviorController;
 import dev.yeldos.echoprotocol.echo.EchoEventContext;
 import dev.yeldos.echoprotocol.echo.EchoState;
 import dev.yeldos.echoprotocol.echo.EchoType;
+import dev.yeldos.echoprotocol.interaction.EchoWorldInteraction;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
 import dev.yeldos.echoprotocol.privacy.EchoPrivacy;
 import net.minecraft.block.Blocks;
@@ -54,6 +55,10 @@ public final class EchoEntity extends MobEntity {
     private EchoType echoType = EchoType.MEMORY;
     private EchoState echoState = EchoState.REPLAYING;
     private boolean eventFinished;
+    private boolean replayMainHandSwing;
+    private boolean replayOffHandSwing;
+    private boolean worldInteractionsReady;
+    private final EchoWorldInteraction worldInteraction = new EchoWorldInteraction();
 
     public EchoEntity(EntityType<? extends MobEntity> type, World world) {
         super(type, world);
@@ -111,6 +116,8 @@ public final class EchoEntity extends MobEntity {
         if (!frames.isEmpty()) {
             RecordedFrame first = frames.get(0);
             this.applyFrame(first);
+            replayMainHandSwing = false;
+            replayOffHandSwing = false;
         }
         behavior.onStarted(this);
     }
@@ -134,7 +141,11 @@ public final class EchoEntity extends MobEntity {
             behavior.onTargetUnavailable(this);
             return;
         }
+        worldInteractionsReady = true;
         behavior.tick(this);
+        if (!isRemoved()) {
+            worldInteraction.tick(this);
+        }
     }
 
     public boolean applyReplayFrame(int replayAge, boolean forceLookAtTarget) {
@@ -167,9 +178,8 @@ public final class EchoEntity extends MobEntity {
 
         refreshPositionAndAngles(x, y, z, yaw, pitch);
         bodyYaw = yaw;
+        setHeldItemVisual(frame.heldItemVisual());
         applyRecordedPose(frame);
-        dataTracker.set(HELD_ITEM, frame.heldItemVisual());
-        setStackInHand(Hand.MAIN_HAND, frame.heldItemVisual());
 
         int fadeTicks = 20;
         int duration = Math.max(1, (replay.size() - 1) * sampleIntervalTicks);
@@ -203,8 +213,8 @@ public final class EchoEntity extends MobEntity {
         refreshPositionAndAngles(pos.x, pos.y, pos.z, yaw, pitch);
         bodyYaw = yaw;
         setHeadYaw(headYaw);
-        applyRecordedPose(frame);
         setHeldItemVisual(frame.heldItemVisual());
+        applyRecordedPose(frame);
         float opacity = baseOpacity;
         if (fadeIn) {
             opacity *= MathHelper.clamp(sequenceAge / 20.0F, 0.0F, 1.0F);
@@ -217,8 +227,8 @@ public final class EchoEntity extends MobEntity {
         refreshPositionAndAngles(frame.x(), frame.y(), frame.z(), frame.bodyYaw(), frame.pitch());
         bodyYaw = frame.bodyYaw();
         setHeadYaw(frame.headYaw());
-        applyRecordedPose(frame);
         setHeldItemVisual(frame.heldItemVisual());
+        applyRecordedPose(frame);
     }
 
     private void applyRecordedPose(RecordedFrame frame) {
@@ -228,6 +238,14 @@ public final class EchoEntity extends MobEntity {
         setSprinting(frame.sprinting());
         setPose(frame.swimming() || frame.crawling() ? EntityPose.SWIMMING
                 : frame.sneaking() ? EntityPose.CROUCHING : EntityPose.STANDING);
+        if (frame.mainHandSwing() && !replayMainHandSwing) {
+            performEchoSwing(Hand.MAIN_HAND, null);
+        }
+        if (frame.offHandSwing() && !replayOffHandSwing) {
+            performEchoSwing(Hand.OFF_HAND, null);
+        }
+        replayMainHandSwing = frame.mainHandSwing();
+        replayOffHandSwing = frame.offHandSwing();
     }
 
     public void setHeldItemVisual(ItemStack stack) {
@@ -303,6 +321,15 @@ public final class EchoEntity extends MobEntity {
         setPose(crouching ? EntityPose.CROUCHING : EntityPose.STANDING);
     }
 
+    public boolean performEchoSwing(Hand hand, Vec3d interactionTarget) {
+        if (worldInteractionsReady && hand == Hand.MAIN_HAND
+                && worldInteraction.performPlacement(this, interactionTarget)) {
+            return true;
+        }
+        swingHand(hand, true);
+        return false;
+    }
+
     public float turnBodyToward(Vec3d direction, float maximumDegrees) {
         if (direction.x * direction.x + direction.z * direction.z < 0.000001D) {
             return 0.0F;
@@ -351,13 +378,16 @@ public final class EchoEntity extends MobEntity {
         }
         Vec3d offset = pos.subtract(getPos());
         BlockPos blockPos = BlockPos.ofFloored(pos);
-        return world.isSpaceEmpty(this, getBoundingBox().offset(offset))
+        net.minecraft.util.math.Box moved = getBoundingBox().offset(offset);
+        return (world.isSpaceEmpty(this, moved)
+                || EchoWorldInteraction.collisionContainsOnlyPassages(world, moved))
                 && !world.getBlockState(blockPos).isOf(Blocks.LAVA)
                 && !world.getBlockState(blockPos).isOf(Blocks.FIRE)
                 && !world.getBlockState(blockPos).isOf(Blocks.SOUL_FIRE);
     }
 
     public void finishAndDiscard() {
+        worldInteraction.clear(this);
         if (!eventFinished && context != null) {
             context.stageManager().state(context.targetUuid()).setActiveEvent(false);
             eventFinished = true;
@@ -367,6 +397,7 @@ public final class EchoEntity extends MobEntity {
 
     @Override
     public void remove(RemovalReason reason) {
+        worldInteraction.clear(this);
         if (!eventFinished && context != null) {
             context.stageManager().state(context.targetUuid()).setActiveEvent(false);
             eventFinished = true;

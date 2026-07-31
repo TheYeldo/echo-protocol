@@ -1,4 +1,4 @@
-# Echo Protocol 0.5.0-beta.1 Architecture Plan
+# Echo Protocol 0.5.0-beta.2 Architecture Plan
 
 ## Ownership and persistence
 

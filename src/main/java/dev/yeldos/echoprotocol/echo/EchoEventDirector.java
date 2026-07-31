@@ -559,7 +559,12 @@ public final class EchoEventDirector {
                 : location == null ? target.getPos() : location.pos().toCenterPos();
         OriginalEventKind eventKind = requestedEvent != null ? requestedEvent
                 : habit != null ? chooseOriginalEvent(habit) : chooseOriginalEvent(location);
-        Optional<Vec3d> spawnPos = SafeEchoPositionFinder.findOriginalStart(world, target, anchor, config);
+        Optional<Vec3d> spawnPos = forced
+                ? SafeEchoPositionFinder.findVisibleOriginalStart(world, target, config)
+                : SafeEchoPositionFinder.findOriginalStart(world, target, anchor, config);
+        if (spawnPos.isEmpty() && forced) {
+            spawnPos = SafeEchoPositionFinder.findOriginalStart(world, target, anchor, config);
+        }
         if (spawnPos.isEmpty()) {
             spawnPos = SafeEchoPositionFinder.findSpawn(world, target,
                     target.getPos().subtract(target.getRotationVec(1.0F).multiply(config.minimumEchoSpawnDistance())), config);

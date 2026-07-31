@@ -15,6 +15,8 @@ import dev.yeldos.echoprotocol.original.OriginalPauseReason;
 import dev.yeldos.echoprotocol.original.OriginalRoutePlanner;
 import dev.yeldos.echoprotocol.sound.EchoSoundPlayer;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.BlockItem;
+import net.minecraft.block.Blocks;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -99,7 +101,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
             return;
         }
         echo.setEchoState(state);
-        echo.setReplayOpacity(0.0F);
+        echo.setReplayOpacity(context.config().originalNearFullOpacity() * 0.32F);
         visualItemEquipped = eventKind != OriginalEventKind.WRONG_OWNER;
         echo.setHeldItemVisual(visualItemEquipped ? heldItem : ItemStack.EMPTY);
         echo.setOriginalCrouching(false);
@@ -134,8 +136,9 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
                 }
             }
         }
-        echo.setReplayOpacity(Math.min(context.config().originalNearFullOpacity(),
-                age / 24.0F * context.config().originalNearFullOpacity()));
+        float fullOpacity = context.config().originalNearFullOpacity();
+        float reveal = MathHelper.clamp(age / 12.0F, 0.0F, 1.0F);
+        echo.setReplayOpacity(MathHelper.lerp(reveal, fullOpacity * 0.32F, fullOpacity));
         maybeSendText(target);
 
         if (fallbackTicks > 0) {
@@ -171,6 +174,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
             case LOOK_AT_ANCHOR -> tickLookAtAnchor(echo, segment);
             case CROUCH -> tickCrouch(echo, target);
             case SWING_HAND -> tickSwing(echo, segment);
+            case PLACE_BLOCK -> tickPlaceBlock(echo, segment);
             case CHANGE_ITEM -> segmentAge >= segmentDuration;
             case WAIT_UNTIL_OBSERVED -> tickWaitObserved(echo, segment);
             case WAIT_UNTIL_UNOBSERVED -> tickWaitUnobserved(echo, segment);
@@ -297,7 +301,21 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
         echo.turnHeadToward(target.add(0.0D, 0.8D, 0.0D), context.config().originalHeadTurnSpeedDegrees(),
                 7.0F, 55.0F);
         if (!swingPlayed) {
-            echo.swingHand(Hand.MAIN_HAND, true);
+            echo.performEchoSwing(Hand.MAIN_HAND, target);
+            swingPlayed = true;
+        }
+        return segmentAge >= segmentDuration;
+    }
+
+    private boolean tickPlaceBlock(EchoEntity echo, OriginalMovementSegment segment) {
+        Vec3d target = segment.target() == null ? anchor : segment.target();
+        echo.turnHeadToward(target.add(0.0D, 0.45D, 0.0D), context.config().originalHeadTurnSpeedDegrees(),
+                8.0F, 60.0F);
+        if (!swingPlayed) {
+            ItemStack material = heldItem.getItem() instanceof BlockItem
+                    ? heldItem : new ItemStack(Blocks.OAK_PLANKS);
+            echo.setHeldItemVisual(material);
+            echo.performEchoSwing(Hand.MAIN_HAND, target);
             swingPlayed = true;
         }
         return segmentAge >= segmentDuration;
@@ -400,6 +418,9 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
         movement.stop(echo);
         if (segment.action() == OriginalAction.CROUCH) {
             echo.setOriginalCrouching(false);
+        }
+        if (segment.action() == OriginalAction.PLACE_BLOCK) {
+            echo.setHeldItemVisual(visualItemEquipped ? heldItem : ItemStack.EMPTY);
         }
     }
 

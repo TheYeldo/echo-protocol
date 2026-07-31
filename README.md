@@ -2,7 +2,7 @@
 
 Echo Protocol is a standalone Fabric mod for Minecraft Java Edition 1.21.1. The world records short, bounded slices of a player's recent movement and later replays distorted memories as translucent Echoes.
 
-`0.5.0-beta.1 — The House Remembers` is the first beta. It connects existing Echo systems through bounded persistent memories, familiar-room relationships, and short generated Memory Threads. Beta does not mean feature-complete; the persistent format may still evolve, and backups are recommended before testing beta builds.
+`0.5.0-beta.2 — The House Remembers` is the interaction and visibility update for the first beta. It connects existing Echo systems through bounded persistent memories, familiar-room relationships, short generated Memory Threads, and target-only spectral world reactions. Beta does not mean feature-complete; the persistent format may still evolve, and backups are recommended before testing beta builds.
 
 ## Requirements
 
@@ -26,14 +26,14 @@ Windows:
 gradlew.bat clean build
 ```
 
-No global Gradle installation is required. The generated mod JAR is written to `build/libs/echo-protocol-0.5.0-beta.1.jar`.
+No global Gradle installation is required. The generated mod JAR is written to `build/libs/echo-protocol-0.5.0-beta.2.jar`.
 
 ## Installation
 
 1. Install Minecraft Java Edition 1.21.1.
 2. Install Fabric Loader 0.16.14 or a compatible 1.21.1 loader.
 3. Install Fabric API 0.116.13+1.21.1 in the `mods` folder.
-4. Place `echo-protocol-0.5.0-beta.1.jar` in the same `mods` folder.
+4. Place `echo-protocol-0.5.0-beta.2.jar` in the same `mods` folder.
 5. Launch the client or dedicated server with Java 21.
 
 ## Echo Types
@@ -54,6 +54,8 @@ No global Gradle installation is required. The generated mod JAR is written to `
 - Contamination shifts bounded event weights while always leaving authentic memories and quiet sessions possible.
 - The Observation Profile contains only decaying gameplay counters. It is not a diagnosis and never manipulates input, camera, or movement.
 - The Original may conclude a thread at a location established by earlier events while retaining the existing collision-checked local controller.
+- Administrative Original events reveal in a clear forward cone. Original movement uses walking, sprinting, acceleration, braking, observation-aware pauses, and door-aware route planning.
+- Moving Echoes visually open nearby doors. A replayed block-use swing, or a scripted Original placement, may show a short-lived spectral block. These target-only block updates never edit the authoritative world and restore automatically.
 
 ## Multiplayer and Privacy
 
@@ -138,10 +140,10 @@ The complete beta keys, preset semantics, validation, and migration behavior are
   "original_maximum_active_per_player": 1,
   "original_maximum_familiar_locations": 16,
   "original_near_full_opacity": 0.94,
-  "original_walk_speed": 0.09,
-  "original_slow_walk_speed": 0.065,
-  "original_fast_walk_speed": 0.13,
-  "original_maximum_speed": 0.16,
+  "original_walk_speed": 0.12,
+  "original_slow_walk_speed": 0.075,
+  "original_fast_walk_speed": 0.235,
+  "original_maximum_speed": 0.27,
   "original_acceleration": 0.012,
   "original_deceleration": 0.018,
   "original_body_turn_speed_degrees": 12.0,
@@ -283,7 +285,7 @@ The reworked Original controller retains roughly 3–8 KB per active event for i
 - Panic Imprint capture and replay contain no damage, explosion, fire, or mob recreation.
 - Peripheral events respect their per-session cap and observation grace period.
 - Audio Residue remains target-only when `shared_echoes=false`.
-- Borrowed Habits remain bounded and never interact with blocks or inventories.
+- Borrowed Habits remain bounded and never inspect inventories or container contents; any Echo world reaction is visual-only.
 - Adaptive history prevents immediate repeats and enforces strong-event silence.
 - Memory Echo accurately replays a route and does not react.
 - Corrupted Echo begins with a valid replay, desynchronizes, looks toward the player, and despawns.
@@ -311,7 +313,7 @@ The reworked Original controller retains roughly 3–8 KB per active event for i
 - Stage 3 unlock persists across restart.
 - Familiar-location tracking remains bounded.
 - The Original spawns only at loaded safe positions or fails cleanly.
-- The Original never changes blocks or inventories.
+- The Original never changes authoritative blocks or inventories; spectral door/block reactions are target-only and self-restoring.
 - Optional Original text is target-only.
 - Peaceful disables optional Original damage.
 - Every Original event finishes within a bounded lifetime and never persists to disk.
@@ -334,7 +336,7 @@ The reworked Original controller retains roughly 3–8 KB per active event for i
 12. Toggle `shared_echoes` in the config, run `/echo_protocol reload`, and compare visibility with another nearby player.
 13. Run `/echo_protocol familiar add-current <your_name>`, then `/echo_protocol stage set <your_name> 3`.
 14. Run every `/echo_protocol original event <your_name> <event>` variant: `occupied_place`, `already_home`, `your_bed`, `wrong_owner`, `earlier_than_you`, `familiar_item`, `waiting`, `empty_room`, and `confrontation`.
-15. For each variant, confirm deliberate 3+ block movement, visible limb motion, smooth body/head turns, purposeful pauses, no wall clipping, no world changes, and a bounded clean ending.
+15. For each variant, confirm deliberate 3+ block movement, visible walking/running transitions, smooth body/head turns, purposeful pauses, closed-door traversal with a visual open/restore, no permanent world changes, and a bounded clean ending.
 16. Run `/echo_protocol original movement-test <your_name> walk`, `fast-walk`, `approach`, `retreat`, `patrol`, `doorway`, and `bed` in a small house, corridor, stairs, outdoors, near a closed doorway, bed, chest, portal, and a blocked direct route. Use `/echo_protocol original status <your_name>` while each test is active.
 17. Repeat an Original movement test under temporary low TPS if practical and confirm speed remains tick-based without snapping or endless stuck retries.
 18. Run `/echo_protocol original confront <your_name>` and confirm the confrontation stops about 2.5–3.2 blocks away, reacts to approach/retreat, and ends without a boss bar or indefinite chase.

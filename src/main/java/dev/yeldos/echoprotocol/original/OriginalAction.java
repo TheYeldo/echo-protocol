@@ -12,6 +12,7 @@ public enum OriginalAction {
     LOOK_AT_ANCHOR,
     CROUCH,
     SWING_HAND,
+    PLACE_BLOCK,
     CHANGE_ITEM,
     WAIT_UNTIL_OBSERVED,
     WAIT_UNTIL_UNOBSERVED,

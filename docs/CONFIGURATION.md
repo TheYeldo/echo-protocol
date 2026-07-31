@@ -56,4 +56,4 @@
 
 Presets are bounded runtime multipliers over the configured values. `SUBTLE` lengthens intervals, favors quiet audio/peripheral presentation, slows contamination, and lowers strong-event pressure. `STANDARD` is the intended default. `INTENSE` moderately raises thread, contradiction, and Original activity while retaining cooldowns and caps. Switching to `CUSTOM` preserves the current configured values. After manually tuning preset-managed pacing, use `CUSTOM` to make that intent explicit.
 
-The existing 0.4.1 settings remain supported and are documented in the root README. No graphical configuration dependency is added.
+The existing 0.4.1 settings remain supported and are documented in the root README. Beta.2 upgrades the exact legacy default Original movement profile (`0.09/0.065/0.13/0.16`) to the new walk/slow/run/maximum profile (`0.12/0.075/0.235/0.27`); any custom speed combination is preserved. No graphical configuration dependency is added.

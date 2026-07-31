@@ -1,6 +1,7 @@
 package dev.yeldos.echoprotocol.original;
 
 import dev.yeldos.echoprotocol.entity.EchoEntity;
+import dev.yeldos.echoprotocol.interaction.EchoWorldInteraction;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.server.world.ServerWorld;
@@ -198,7 +199,8 @@ public final class OriginalRoutePlanner {
         }
         Vec3d offset = position.subtract(echo.getPos());
         Box moved = echo.getBoundingBox().offset(offset);
-        return world.isSpaceEmpty(echo, moved);
+        return world.isSpaceEmpty(echo, moved)
+                || EchoWorldInteraction.collisionContainsOnlyPassages(world, moved);
     }
 
     private static boolean safeSegment(ServerWorld world, EchoEntity echo, Vec3d from, Vec3d to) {
@@ -229,7 +231,9 @@ public final class OriginalRoutePlanner {
             return false;
         }
         Vec3d offset = position.subtract(echo.getPos());
-        return world.isSpaceEmpty(echo, echo.getBoundingBox().offset(offset));
+        Box moved = echo.getBoundingBox().offset(offset);
+        return world.isSpaceEmpty(echo, moved)
+                || EchoWorldInteraction.collisionContainsOnlyPassages(world, moved);
     }
 
     private static boolean unsafe(BlockState state) {
