@@ -20,9 +20,9 @@ One unchanged production JAR was tested on all three versions. Its metadata list
 | Target | Tests | Build | Server | Client/world | Gameplay | Renderer | Restart | Two-client privacy | Performance/log | Upload readiness |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1.21.6 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | PARTIALLY VERIFIED | NOT TESTED | NOT TESTED | NOT TESTED | VERIFIED |
-| 1.21.7 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | PARTIALLY VERIFIED | PARTIALLY VERIFIED | NOT TESTED | NOT TESTED | NOT TESTED | VERIFIED |
+| 1.21.7 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | PARTIALLY VERIFIED | NOT TESTED | NOT TESTED | NOT TESTED | VERIFIED |
 | 1.21.8 | VERIFIED (50) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED |
 
-All three dedicated servers reached `Done`, applied `ServerEntityTrackingMixin`, loaded resources and commands, and stopped cleanly. Real clients connected and loaded worlds on all three versions. Minecraft 1.21.7 received direct Memory, Corrupted, Peripheral, Original, and cleanup coverage; direct Audio Residue capture/playback was repeated on a byte-different diagnostic build containing only an unrelated dimension guard, so the final-hash 1.21.7 gameplay row remains conservatively partial. Audio Residue was directly verified with the final shared artifact on 1.21.8.
+All three dedicated servers reached `Done`, applied `ServerEntityTrackingMixin`, loaded resources and commands, and stopped cleanly. Real clients connected and loaded worlds on all three versions. Minecraft 1.21.7 received direct Memory, Corrupted, Peripheral, Audio Residue playback, Original, and cleanup coverage against the final shared SHA-256. Audio Residue was also directly verified on 1.21.8.
 
 Minecraft 1.21.8 received the full representative pipeline, persistence restart, packet-instrumented two-client privacy test, visual translucent renderer check, and a short performance/log inspection. A real End Portal transition with an active Memory Echo was repeated against the final SHA-256; the target changed to `minecraft:the_end`, no Echo remained, and the event lock was clear.
