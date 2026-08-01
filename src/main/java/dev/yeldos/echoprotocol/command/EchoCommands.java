@@ -286,7 +286,7 @@ public final class EchoCommands {
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
                                                 .executes(context -> {
                                                     ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
-                                                    boolean found = SafeEchoPositionFinder.findSpawn(player.getServerWorld(), player,
+                                                    boolean found = SafeEchoPositionFinder.findSpawn(player.getWorld(), player,
                                                             player.getPos().subtract(player.getRotationVec(1.0F).multiply(EchoProtocol.config().minimumEchoSpawnDistance())),
                                                             EchoProtocol.config()).isPresent();
                                                     context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.position_test",

@@ -160,7 +160,7 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
             }
         }
         if (stateAge > 140) {
-            boolean hostile = target.getServerWorld().getDifficulty() != Difficulty.PEACEFUL
+            boolean hostile = target.getWorld().getDifficulty() != Difficulty.PEACEFUL
                     && (forcedHostile || (context.config().mimicChaseEnabled() && ThreadLocalRandom.current().nextInt(4) == 0));
             transition(hostile ? EchoState.THREATENING : EchoState.APPROACHING, echo);
         }
@@ -179,7 +179,7 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     }
 
     private void tickThreatening(EchoEntity echo, ServerPlayerEntity target) {
-        if (target.getServerWorld().getDifficulty() == Difficulty.PEACEFUL) {
+        if (target.getWorld().getDifficulty() == Difficulty.PEACEFUL) {
             transition(EchoState.DISAPPEARING, echo);
             return;
         }
@@ -249,12 +249,12 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
                 || context.config().mimicDamage() <= 0.0F
                 || hits >= context.config().mimicMaxHitsPerEvent()
                 || age - lastHitAge < 40
-                || target.getServerWorld().getDifficulty() == Difficulty.PEACEFUL
+                || target.getWorld().getDifficulty() == Difficulty.PEACEFUL
                 || echo.squaredDistanceTo(target) > 3.0D) {
             return;
         }
         float damage = Math.min(context.config().mimicDamage(), Math.max(0.0F, target.getHealth() - 1.0F));
-        if (damage > 0.0F && target.damage(target.getServerWorld(),
+        if (damage > 0.0F && target.damage(target.getWorld(),
                 echo.getDamageSources().mobAttack(echo), damage)) {
             hits++;
             lastHitAge = age;

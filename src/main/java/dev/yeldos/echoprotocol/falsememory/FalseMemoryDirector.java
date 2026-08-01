@@ -56,7 +56,7 @@ public final class FalseMemoryDirector {
         int start = maximumStart <= 0 ? 0 : random.nextInt(maximumStart + 1);
         List<RecordedFrame> authentic = new ArrayList<>(source.subList(start, start + wantedFrames));
 
-        Optional<Vec3d> spawn = SafeEchoPositionFinder.findSpawn(target.getServerWorld(), target,
+        Optional<Vec3d> spawn = SafeEchoPositionFinder.findSpawn(target.getWorld(), target,
                 authentic.get(0).pos(), config);
         if (spawn.isEmpty()) {
             return Optional.empty();
@@ -82,7 +82,7 @@ public final class FalseMemoryDirector {
         }
         RecordedFrame originalFirst = authentic.get(0);
         RecordedFrame originalLast = authentic.get(authentic.size() - 1);
-        String signature = target.getServerWorld().getRegistryKey().getValue() + ":"
+        String signature = target.getWorld().getRegistryKey().getValue() + ":"
                 + MathHelper.floor(originalFirst.x() / 4.0D) + ":" + MathHelper.floor(originalFirst.z() / 4.0D)
                 + ":" + MathHelper.floor(originalLast.x() / 4.0D) + ":" + MathHelper.floor(originalLast.z() / 4.0D);
         boolean entersUnauthentic = deviations.contains(FalseMemoryDeviation.APPROACH_FAMILIAR_PLACE)
@@ -111,7 +111,7 @@ public final class FalseMemoryDirector {
         for (FalseMemoryDeviation deviation : deviations) {
             RecordedFrame base = result.isEmpty() ? branch : result.get(result.size() - 1);
             switch (deviation) {
-                case CONTINUE_BEYOND_RECORDING -> continueForward(target.getServerWorld(), base, result, 24);
+                case CONTINUE_BEYOND_RECORDING -> continueForward(target.getWorld(), base, result, 24);
                 case REPEAT_MOVEMENT -> repeatMovement(prefix, result);
                 case REVERSE_ROUTE -> reverseRoute(prefix, result);
                 case CROUCH_AT_WRONG_PLACE -> holdPose(base, result, 18, true, false, base.heldItemVisual(), base.headYaw());
@@ -176,12 +176,12 @@ public final class FalseMemoryDirector {
 
     private void approachFamiliar(ServerPlayerEntity target, RecordedFrame base, List<RecordedFrame> out, EchoConfig config) {
         FamiliarLocation location = stageManager.familiarLocations(target).stream()
-                .filter(value -> value.dimension().equals(target.getServerWorld().getRegistryKey().getValue().toString()))
-                .filter(value -> target.getServerWorld().isChunkLoaded(value.pos()))
+                .filter(value -> value.dimension().equals(target.getWorld().getRegistryKey().getValue().toString()))
+                .filter(value -> target.getWorld().isChunkLoaded(value.pos()))
                 .filter(value -> value.pos().getSquaredDistance(BlockPos.ofFloored(base.pos())) <= 32.0D * 32.0D)
                 .findFirst().orElse(null);
         if (location == null) {
-            continueForward(target.getServerWorld(), base, out, 20);
+            continueForward(target.getWorld(), base, out, 20);
             return;
         }
         Vec3d direction = location.pos().toCenterPos().subtract(base.pos());
@@ -194,7 +194,7 @@ public final class FalseMemoryDirector {
         float yaw = (float) Math.toDegrees(Math.atan2(direction.z, direction.x)) - 90.0F;
         for (int i = 0; i < 28; i++) {
             Vec3d next = pos.add(direction.multiply(0.11D));
-            if (!isSafe(target.getServerWorld(), next)) {
+            if (!isSafe(target.getWorld(), next)) {
                 break;
             }
             out.add(copy(base, next, yaw, yaw, 0.0F, false, false, base.heldItemVisual()));

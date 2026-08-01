@@ -107,7 +107,7 @@ public final class StageManager {
             return;
         }
         PlayerEchoState state = state(player.getUuid());
-        String dimension = player.getServerWorld().getRegistryKey().getValue().toString();
+        String dimension = player.getWorld().getRegistryKey().getValue().toString();
         for (FamiliarLocation location : state.familiarLocations()) {
             if (location.canMerge(type, dimension, pos)) {
                 location.markSeen(tick);

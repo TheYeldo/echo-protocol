@@ -466,7 +466,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
             return;
         }
         float damage = Math.min(config.originalDamage(), Math.max(0.0F, target.getHealth() - 1.0F));
-        if (damage > 0.0F && target.damage(target.getServerWorld(),
+        if (damage > 0.0F && target.damage(target.getWorld(),
                 echo.getDamageSources().mobAttack(echo), damage)) {
             confrontationDamageApplied = true;
         }

@@ -33,7 +33,7 @@ public final class FalseMemoryBehavior implements EchoBehaviorController {
     @Override
     public void tick(EchoEntity echo) {
         ServerPlayerEntity target = echo.getTargetPlayer();
-        if (target == null || !target.getServerWorld().isChunkLoaded(echo.getBlockPos())) {
+        if (target == null || !target.getWorld().isChunkLoaded(echo.getBlockPos())) {
             echo.finishAndDiscard();
             return;
         }

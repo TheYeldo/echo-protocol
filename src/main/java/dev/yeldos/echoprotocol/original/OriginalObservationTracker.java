@@ -60,7 +60,7 @@ public final class OriginalObservationTracker {
         if (distance < 0.001D) {
             return OriginalObservationState.DIRECT;
         }
-        HitResult hit = player.getServerWorld().raycast(new RaycastContext(player.getEyePos(), echo.getEyePos(),
+        HitResult hit = player.getWorld().raycast(new RaycastContext(player.getEyePos(), echo.getEyePos(),
                 RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player));
         if (hit.getType() != HitResult.Type.MISS) {
             return OriginalObservationState.BLOCKED;

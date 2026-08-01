@@ -14,7 +14,7 @@ public final class EchoVisualEffects {
             return;
         }
         int count = Math.max(1, Math.min(8, (int) (6 * config.corruptionVisualIntensity())));
-        target.getServerWorld().spawnParticles(target, ParticleTypes.SCULK_SOUL, true, false, pos.x, pos.y + 1.0D, pos.z,
+        target.getWorld().spawnParticles(target, ParticleTypes.SCULK_SOUL, true, false, pos.x, pos.y + 1.0D, pos.z,
                 count, 0.12D, 0.45D, 0.12D, 0.004D);
     }
 
@@ -22,7 +22,7 @@ public final class EchoVisualEffects {
         if (config.reducedVisualEffects()) {
             return;
         }
-        target.getServerWorld().spawnParticles(target, ParticleTypes.ASH, true, false, pos.x, pos.y + 0.9D, pos.z,
+        target.getWorld().spawnParticles(target, ParticleTypes.ASH, true, false, pos.x, pos.y + 0.9D, pos.z,
                 8, 0.22D, 0.55D, 0.22D, 0.01D);
     }
 }

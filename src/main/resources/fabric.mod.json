@@ -23,9 +23,9 @@
     "echoprotocol.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.14",
+    "fabricloader": ">=0.19.3",
     "fabric-api": "*",
-    "minecraft": "1.21.5",
+    "minecraft": ["1.21.6", "1.21.7", "1.21.8"],
     "java": ">=21"
   }
 }

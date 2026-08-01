@@ -208,7 +208,7 @@ public final class EchoEventDirector {
         }
         List<RecordedFrame> frames = type == EchoType.CORRUPTED ? corruptSegment(segment) : segment;
         RecordedFrame start = frames.getFirst();
-        ServerWorld world = target.getServerWorld();
+        ServerWorld world = target.getWorld();
         Optional<Vec3d> spawnPos = SafeEchoPositionFinder.findSpawn(world, target, start.pos(), config);
         if (spawnPos.isEmpty()) {
             return false;
@@ -291,7 +291,7 @@ public final class EchoEventDirector {
         if (imprint == null || recording == null || !prepareEvent(target, state, forced, config)) {
             return false;
         }
-        if (!imprint.dimension().equals(target.getServerWorld().getRegistryKey().getValue().toString())) {
+        if (!imprint.dimension().equals(target.getWorld().getRegistryKey().getValue().toString())) {
             return false;
         }
         Optional<FalseMemoryPlan> optionalPlan = falseMemoryDirector.createPlan(target, recording, imprint, config,
@@ -358,7 +358,7 @@ public final class EchoEventDirector {
         if (recording == null || recording.latest() == null || !prepareEvent(target, state, forced, config)) {
             return false;
         }
-        Optional<Vec3d> pos = SafeEchoPositionFinder.findPeripheral(target.getServerWorld(), target, config);
+        Optional<Vec3d> pos = SafeEchoPositionFinder.findPeripheral(target.getWorld(), target, config);
         if (pos.isEmpty()) {
             return false;
         }
@@ -419,7 +419,7 @@ public final class EchoEventDirector {
         if (recording == null || recording.frames().size() < 8 || !prepareEvent(target, state, forced, config)) {
             return false;
         }
-        ServerWorld world = target.getServerWorld();
+        ServerWorld world = target.getWorld();
         List<RecordedFrame> source = recording.frames();
         int sourceStart = Math.max(0, source.size() - Math.min(60, source.size()));
         List<RecordedFrame> boundedSource = source.subList(sourceStart, source.size());
@@ -546,7 +546,7 @@ public final class EchoEventDirector {
                 || activeOriginalCount(target) >= config.originalMaximumActivePerPlayer()) {
             return false;
         }
-        ServerWorld world = target.getServerWorld();
+        ServerWorld world = target.getWorld();
         Vec3d threadAnchor = threadContext == null ? null : resolveThreadAnchor(target, threadContext);
         if (threadContext != null && threadAnchor == null) {
             return false;
@@ -803,10 +803,10 @@ public final class EchoEventDirector {
                 ? memory.observationProfile().style(config.observationProfileMinimumSamples())
                 : ObservationStyle.UNCLASSIFIED;
         float adaptation = config.observationProfileAdaptationStrength();
-        boolean night = target.getServerWorld().isNight();
-        boolean underground = !target.getServerWorld().isSkyVisible(target.getBlockPos());
+        boolean night = target.getWorld().isNight();
+        boolean underground = !target.getWorld().isSkyVisible(target.getBlockPos());
         boolean atHome = stageManager.familiarLocations(target).stream()
-                .anyMatch(location -> location.dimension().equals(target.getServerWorld().getRegistryKey().getValue().toString())
+                .anyMatch(location -> location.dimension().equals(target.getWorld().getRegistryKey().getValue().toString())
                         && location.pos().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D);
         if (canSpawnType(target, EchoType.MEMORY, config)) {
             int weight = EchoPresetManager.adjustWeight(config.memoryEchoWeight(),
@@ -891,7 +891,7 @@ public final class EchoEventDirector {
             return null;
         }
         long seed = target.getUuid().getMostSignificantBits() ^ target.getUuid().getLeastSignificantBits()
-                ^ target.getServerWorld().getTime();
+                ^ target.getWorld().getTime();
         return available.get(Math.floorMod((int) (seed ^ (seed >>> 32)), available.size()));
     }
 
@@ -940,22 +940,22 @@ public final class EchoEventDirector {
     }
 
     private Vec3d resolveThreadAnchor(ServerPlayerEntity target, MemoryThreadContext context) {
-        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        String dimension = target.getWorld().getRegistryKey().getValue().toString();
         if (context.room() != null && context.room().valid() && context.room().dimension().equals(dimension)
-                && target.getServerWorld().isChunkLoaded(context.room().center())) {
+                && target.getWorld().isChunkLoaded(context.room().center())) {
             return context.room().center().toCenterPos();
         }
         if (context.thread().type() == dev.yeldos.echoprotocol.thread.MemoryThreadType.PANIC) {
             PanicImprint imprint = panicImprints.latest(target.getUuid());
             if (imprint != null && imprint.dimension().equals(dimension) && !imprint.frames().isEmpty()) {
                 BlockPos position = BlockPos.ofFloored(imprint.frames().getLast().pos());
-                if (target.getServerWorld().isChunkLoaded(position)) {
+                if (target.getWorld().isChunkLoaded(position)) {
                     return imprint.frames().getLast().pos();
                 }
             }
         }
         for (AudioResidue residue : audioResidues.list(target.getUuid()).reversed()) {
-            if (residue.dimension().equals(dimension) && target.getServerWorld().isChunkLoaded(residue.position())) {
+            if (residue.dimension().equals(dimension) && target.getWorld().isChunkLoaded(residue.position())) {
                 return residue.position().toCenterPos();
             }
         }
@@ -964,17 +964,17 @@ public final class EchoEventDirector {
 
     private Vec3d chooseContradictionDestination(ServerPlayerEntity target, MemoryThreadContext context,
                                                  Vec3d routeEnd, EchoConfig config) {
-        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        String dimension = target.getWorld().getRegistryKey().getValue().toString();
         if (context != null && context.room() != null && context.room().valid()
                 && context.room().dimension().equals(dimension)
-                && target.getServerWorld().isChunkLoaded(context.room().center())) {
+                && target.getWorld().isChunkLoaded(context.room().center())) {
             return context.room().center().toCenterPos();
         }
         double maximumSquared = config.maximumEchoSpawnDistance() * config.maximumEchoSpawnDistance();
         return stageManager.memory(target.getUuid()).roomGraph().nodes().stream()
                 .filter(RoomMemoryNode::valid)
                 .filter(room -> room.dimension().equals(dimension))
-                .filter(room -> target.getServerWorld().isChunkLoaded(room.center()))
+                .filter(room -> target.getWorld().isChunkLoaded(room.center()))
                 .filter(room -> room.center().getSquaredDistance(target.getBlockPos()) <= maximumSquared)
                 .filter(room -> room.center().toCenterPos().squaredDistanceTo(routeEnd) >= 3.0D * 3.0D)
                 .sorted(java.util.Comparator.comparingDouble(RoomMemoryNode::confidence).reversed())
@@ -1100,14 +1100,14 @@ public final class EchoEventDirector {
                 || player.getHealth() <= Math.min(6.0F, EchoProtocol.config().panicImprintHealthThreshold())) {
             return true;
         }
-        List<MobEntity> nearby = player.getServerWorld().getEntitiesByClass(MobEntity.class,
+        List<MobEntity> nearby = player.getWorld().getEntitiesByClass(MobEntity.class,
                 player.getBoundingBox().expand(24.0D), mob -> mob.isAlive()
                         && (mob.getTarget() == player || mob instanceof WitherEntity || mob instanceof EnderDragonEntity));
         return !nearby.isEmpty();
     }
 
     private void noteDimension(ServerPlayerEntity player) {
-        String current = player.getServerWorld().getRegistryKey().getValue().toString();
+        String current = player.getWorld().getRegistryKey().getValue().toString();
         String previous = dimensions.put(player.getUuid(), current);
         if (previous != null && !previous.equals(current)) {
             dimensionChangeTicks.put(player.getUuid(), stageManager.tick());
@@ -1124,7 +1124,7 @@ public final class EchoEventDirector {
         if (config.sharedEchoes()) {
             return false;
         }
-        for (ServerPlayerEntity other : target.getServerWorld().getPlayers()) {
+        for (ServerPlayerEntity other : target.getWorld().getPlayers()) {
             if (other != target && !other.isSpectator() && other.squaredDistanceTo(target) < 24.0D * 24.0D) {
                 return true;
             }
@@ -1179,11 +1179,11 @@ public final class EchoEventDirector {
 
     private EchoEntity createEcho(ServerPlayerEntity target, List<RecordedFrame> frames, EchoEventContext context,
                                   EchoBehaviorController behavior, Vec3d pos, float yaw, float pitch, EchoConfig config) {
-        EchoEntity echo = new EchoEntity(EchoEntities.ECHO, target.getServerWorld());
+        EchoEntity echo = new EchoEntity(EchoEntities.ECHO, target.getWorld());
         echo.configure(target.getUuid(), config.sharedEchoes(), frames, config.recordingSampleIntervalTicks(),
                 config, context, behavior);
         echo.refreshPositionAndAngles(pos.x, pos.y, pos.z, yaw, pitch);
-        return target.getServerWorld().spawnEntity(echo) ? echo : null;
+        return target.getWorld().spawnEntity(echo) ? echo : null;
     }
 
     private void registerEcho(ServerPlayerEntity target, EchoEntity echo) {
@@ -1259,7 +1259,7 @@ public final class EchoEventDirector {
             if (awardsProgress && threadContext == null) {
                 RoomMemoryNode room = roomMemories.currentRoom(target, 16.0D);
                 long roomId = room == null ? 0L : room.id();
-                String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+                String dimension = target.getWorld().getRegistryKey().getValue().toString();
                 boolean strong = eventType.equals("mimic") || eventType.equals("original")
                         || eventType.equals("panic_imprint") || eventType.startsWith("contradiction_");
                 stageManager.memory(target.getUuid()).recordSignificantEvent(
@@ -1380,13 +1380,13 @@ public final class EchoEventDirector {
         if (!config.borrowedHabitsEnabled()) {
             return Optional.empty();
         }
-        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        String dimension = target.getWorld().getRegistryKey().getValue().toString();
         double localRadius = Math.max(12.0D, config.originalMaximumMovementDistance() + 4.0D);
         return habits.habits(target.getUuid()).stream()
                 .filter(habit -> habit.dimension().equals(dimension))
-                .filter(habit -> target.getServerWorld().isChunkLoaded(habit.position()))
+                .filter(habit -> target.getWorld().isChunkLoaded(habit.position()))
                 .filter(habit -> habit.position().getSquaredDistance(target.getBlockPos()) <= localRadius * localRadius)
-                .filter(habit -> validHabitAnchor(target.getServerWorld(), habit))
+                .filter(habit -> validHabitAnchor(target.getWorld(), habit))
                 .filter(habit -> requestedEvent == null || eventMatches(requestedEvent, habit.type()))
                 .findFirst();
     }
@@ -1396,13 +1396,13 @@ public final class EchoEventDirector {
         if (!config.originalFamiliarLocationsEnabled()) {
             return Optional.empty();
         }
-        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        String dimension = target.getWorld().getRegistryKey().getValue().toString();
         double localRadius = Math.max(12.0D, config.originalMaximumMovementDistance() + 4.0D);
         return stageManager.familiarLocations(target).stream()
                 .filter(location -> location.dimension().equals(dimension))
-                .filter(location -> target.getServerWorld().isChunkLoaded(location.pos()))
+                .filter(location -> target.getWorld().isChunkLoaded(location.pos()))
                 .filter(location -> location.pos().getSquaredDistance(target.getBlockPos()) <= localRadius * localRadius)
-                .filter(location -> validFamiliarAnchor(target.getServerWorld(), location))
+                .filter(location -> validFamiliarAnchor(target.getWorld(), location))
                 .filter(location -> requestedEvent == null || eventMatches(requestedEvent, location.type()))
                 .sorted((left, right) -> Integer.compare(right.visits(), left.visits())).findFirst();
     }
@@ -1503,15 +1503,15 @@ public final class EchoEventDirector {
     }
 
     private List<Vec3d> collectOriginalAnchors(ServerPlayerEntity target) {
-        String dimension = target.getServerWorld().getRegistryKey().getValue().toString();
+        String dimension = target.getWorld().getRegistryKey().getValue().toString();
         List<Vec3d> result = new ArrayList<>(5);
         for (PlayerHabitSummary.Habit habit : habits.habits(target.getUuid())) {
             if (result.size() >= 5) {
                 break;
             }
-            if (habit.dimension().equals(dimension) && target.getServerWorld().isChunkLoaded(habit.position())
+            if (habit.dimension().equals(dimension) && target.getWorld().isChunkLoaded(habit.position())
                     && habit.position().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D
-                    && validHabitAnchor(target.getServerWorld(), habit)) {
+                    && validHabitAnchor(target.getWorld(), habit)) {
                 addDistinctAnchor(result, habit.position().toCenterPos());
             }
         }
@@ -1519,9 +1519,9 @@ public final class EchoEventDirector {
             if (result.size() >= 5) {
                 break;
             }
-            if (location.dimension().equals(dimension) && target.getServerWorld().isChunkLoaded(location.pos())
+            if (location.dimension().equals(dimension) && target.getWorld().isChunkLoaded(location.pos())
                     && location.pos().getSquaredDistance(target.getBlockPos()) <= 16.0D * 16.0D
-                    && validFamiliarAnchor(target.getServerWorld(), location)) {
+                    && validFamiliarAnchor(target.getWorld(), location)) {
                 addDistinctAnchor(result, location.pos().toCenterPos());
             }
         }
@@ -1562,7 +1562,7 @@ public final class EchoEventDirector {
             return;
         }
         if (config.sharedEchoes()) {
-            target.getServerWorld().playSound(null, marker.x(), marker.y(), marker.z(), marker.sound(),
+            target.getWorld().playSound(null, marker.x(), marker.y(), marker.z(), marker.sound(),
                     SoundCategory.PLAYERS, Math.min(marker.volume(), 0.6F), marker.pitch());
         } else {
             target.networkHandler.sendPacket(new PlaySoundS2CPacket(Registries.SOUND_EVENT.getEntry(marker.sound()),
@@ -1572,7 +1572,7 @@ public final class EchoEventDirector {
     }
 
     private static void spawnTargetedParticles(ServerPlayerEntity player, Vec3d pos) {
-        player.getServerWorld().spawnParticles(player, ParticleTypes.SCULK_SOUL, true, false, pos.x, pos.y, pos.z,
+        player.getWorld().spawnParticles(player, ParticleTypes.SCULK_SOUL, true, false, pos.x, pos.y, pos.z,
                 8, 0.15D, 0.35D, 0.15D, 0.01D);
     }
 
