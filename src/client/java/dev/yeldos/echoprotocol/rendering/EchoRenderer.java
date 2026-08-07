@@ -5,6 +5,7 @@ import dev.yeldos.echoprotocol.echo.EchoState;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.command.OrderedRenderCommandQueue;
 import net.minecraft.client.render.entity.BipedEntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
@@ -114,7 +115,7 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
     @Override
     protected RenderLayer getRenderLayer(PlayerEntityRenderState state, boolean showBody,
                                          boolean translucent, boolean showOutline) {
-        return RenderLayer.getEntityTranslucent(getTexture(state));
+        return RenderLayers.entityTranslucent(getTexture(state));
     }
 
     private static final class EchoRenderState extends PlayerEntityRenderState {

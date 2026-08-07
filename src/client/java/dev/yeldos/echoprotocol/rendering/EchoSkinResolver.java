@@ -50,7 +50,10 @@ public final class EchoSkinResolver {
         if (textures == null) {
             textures = DefaultSkinHelper.getSkinTextures(uuid);
         }
-        if (EchoProtocol.config().skinCacheEnabled()) {
+        // The player-list supplier can temporarily return an unsigned default while
+        // the signed skin is still downloading. Caching that fallback permanently
+        // prevents Echoes from adopting the real skin once it becomes available.
+        if (EchoProtocol.config().skinCacheEnabled() && textures.secure()) {
             CACHE.put(uuid, textures);
         }
         return textures;

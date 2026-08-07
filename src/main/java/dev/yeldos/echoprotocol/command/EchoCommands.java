@@ -38,7 +38,7 @@ public final class EchoCommands {
     public static void register(RecordingManager recordingManager, StageManager stageManager, EchoEventDirector director) {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
                 CommandManager.literal("echo_protocol")
-                        .requires(source -> source.hasPermissionLevel(2))
+                        .requires(CommandManager.requirePermissionLevel(CommandManager.GAMEMASTERS_CHECK))
                         .then(CommandManager.literal("stage")
                                 .then(CommandManager.literal("get")
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
