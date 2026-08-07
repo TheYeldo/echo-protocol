@@ -78,7 +78,7 @@ public final class MemoryThreadManager {
         }
         long roomId = room == null ? 0L : room.id();
         String dimension = room == null
-                ? player.getWorld().getRegistryKey().getValue().toString() : room.dimension();
+                ? player.getEntityWorld().getRegistryKey().getValue().toString() : room.dimension();
         String relatedItem = memory.habits().stream()
                 .filter(habit -> habit.dimension().equals(dimension) && !habit.visualItemId().isBlank())
                 .map(habit -> habit.visualItemId()).findFirst().orElse("");
@@ -99,7 +99,7 @@ public final class MemoryThreadManager {
             return Optional.empty();
         }
         if (!thread.selectedDimension().isBlank()
-                && !thread.selectedDimension().equals(player.getWorld().getRegistryKey().getValue().toString())) {
+                && !thread.selectedDimension().equals(player.getEntityWorld().getRegistryKey().getValue().toString())) {
             return Optional.empty();
         }
         RoomMemoryNode room = thread.selectedRoomNodeId() == 0L ? null
@@ -247,7 +247,7 @@ public final class MemoryThreadManager {
         if (current != null && current.confidence() >= config.roomMemoryMinimumConfidence()) {
             return current;
         }
-        String dimension = player.getWorld().getRegistryKey().getValue().toString();
+        String dimension = player.getEntityWorld().getRegistryKey().getValue().toString();
         return memory.roomGraph().nodes().stream().filter(RoomMemoryNode::valid)
                 .filter(room -> room.dimension().equals(dimension))
                 .filter(room -> room.confidence() >= config.roomMemoryMinimumConfidence())

@@ -44,11 +44,11 @@ public final class RoomMemoryManager {
 
     public RoomMemoryNode observeInteraction(ServerPlayerEntity player, FamiliarLocationType familiarType,
                                               BlockPos position, EchoConfig config, long tick) {
-        if (!config.roomMemoryEnabled() || !player.getWorld().isChunkLoaded(position)) {
+        if (!config.roomMemoryEnabled() || !player.getEntityWorld().isChunkLoaded(position)) {
             return null;
         }
         RoomMemoryType roomType = RoomMemoryType.fromFamiliarLocation(familiarType);
-        Probe probe = probe(player.getWorld(), position, roomType, config);
+        Probe probe = probe(player.getEntityWorld(), position, roomType, config);
         RoomObservation observation = new RoomObservation(dimension(player), position, probe.type(),
                 Math.max(0.62F, probe.confidence()), tick, familiarId(familiarType, position),
                 List.of(position), RoomObservationSource.EXPLICIT_INTERACTION);
@@ -58,7 +58,7 @@ public final class RoomMemoryManager {
     private void observePeriodic(ServerPlayerEntity player, EchoConfig config, long tick) {
         FamiliarLocation familiar = stageManager.familiarLocations(player).stream()
                 .filter(location -> location.dimension().equals(dimension(player)))
-                .filter(location -> player.getWorld().isChunkLoaded(location.pos()))
+                .filter(location -> player.getEntityWorld().isChunkLoaded(location.pos()))
                 .filter(location -> location.pos().getSquaredDistance(player.getBlockPos())
                         <= config.roomMemoryProbeRadius() * config.roomMemoryProbeRadius())
                 .min(Comparator.comparingDouble(location -> location.pos().getSquaredDistance(player.getBlockPos())))
@@ -66,7 +66,7 @@ public final class RoomMemoryManager {
         RoomMemoryType suggested = familiar == null
                 ? RoomMemoryType.IDLE : RoomMemoryType.fromFamiliarLocation(familiar.type());
         BlockPos center = familiar == null ? player.getBlockPos() : familiar.pos();
-        Probe probe = probe(player.getWorld(), center, suggested, config);
+        Probe probe = probe(player.getEntityWorld(), center, suggested, config);
         if (familiar == null && probe.confidence() < config.roomMemoryMinimumConfidence()) {
             return;
         }
@@ -174,7 +174,7 @@ public final class RoomMemoryManager {
     }
 
     private static String dimension(ServerPlayerEntity player) {
-        return player.getWorld().getRegistryKey().getValue().toString();
+        return player.getEntityWorld().getRegistryKey().getValue().toString();
     }
 
     private static String familiarId(FamiliarLocationType type, BlockPos position) {

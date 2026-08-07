@@ -71,7 +71,7 @@ public final class EchoSoundPlayer {
     }
 
     private static boolean play(ServerPlayerEntity target, String key, SoundEvent sound, EchoConfig config, Vec3d pos, float volume, float pitch, int cooldownTicks) {
-        long now = target.getWorld().getTime();
+        long now = target.getEntityWorld().getTime();
         String cooldownKey = target.getUuid() + ":" + key;
         if (now - COOLDOWNS.getOrDefault(cooldownKey, -999999L) < cooldownTicks) {
             return false;
@@ -82,7 +82,7 @@ public final class EchoSoundPlayer {
         }
         COOLDOWNS.put(cooldownKey, now);
         if (config.sharedEchoes()) {
-            target.getWorld().playSound(null, pos.x, pos.y, pos.z, sound, SoundCategory.PLAYERS, finalVolume, pitch);
+            target.getEntityWorld().playSound(null, pos.x, pos.y, pos.z, sound, SoundCategory.PLAYERS, finalVolume, pitch);
         } else {
             target.networkHandler.sendPacket(new PlaySoundS2CPacket(Registries.SOUND_EVENT.getEntry(sound),
                     SoundCategory.PLAYERS, pos.x, pos.y, pos.z, finalVolume, pitch,

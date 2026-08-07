@@ -63,7 +63,7 @@ public final class OriginalActionPlanFactory {
     }
 
     private static OriginalActionPlan yourBed(Vec3d bedSide, Vec3d exit, ServerPlayerEntity player) {
-        Vec3d crossing = midpoint(player.getPos(), bedSide);
+        Vec3d crossing = midpoint(player.getEntityPos(), bedSide);
         return plan(
                 rotate(bedSide),
                 move(OriginalAction.FAST_WALK, bedSide, 180),
@@ -85,7 +85,7 @@ public final class OriginalActionPlanFactory {
                 timed(OriginalAction.SWING_HAND, storage, 8, 14, OriginalPauseReason.EXAMINING),
                 pause(25, 45, OriginalPauseReason.CLAIMING_SPACE, false),
                 timed(OriginalAction.LOOK_AT_PLAYER, null, 20, 34, OriginalPauseReason.WATCHING),
-                move(OriginalAction.APPROACH, player.getPos(), 80),
+                move(OriginalAction.APPROACH, player.getEntityPos(), 80),
                 move(OriginalAction.WALK, exit, 180),
                 disappear());
     }
@@ -153,7 +153,7 @@ public final class OriginalActionPlanFactory {
                     OriginalPauseReason.LISTENING, false), disappear());
             case FAST_WALK -> plan(move(OriginalAction.FAST_WALK, destination, 160), pause(20, 20,
                     OriginalPauseReason.LISTENING, false), disappear());
-            case APPROACH -> plan(move(OriginalAction.APPROACH, player.getPos(), 180), pause(40, 40,
+            case APPROACH -> plan(move(OriginalAction.APPROACH, player.getEntityPos(), 180), pause(40, 40,
                     OriginalPauseReason.CONFRONTING, false), disappear());
             case RETREAT -> plan(move(OriginalAction.RETREAT, exit, 180), disappear());
             case PATROL -> plan(move(OriginalAction.WALK, anchor, 160), move(OriginalAction.FAST_WALK, destination, 180),
@@ -167,8 +167,8 @@ public final class OriginalActionPlanFactory {
     private static Vec3d meaningfulDestination(ServerWorld world, EchoEntity echo, ServerPlayerEntity player,
                                                 Vec3d anchor, List<Vec3d> knownLocations, EchoConfig config) {
         for (Vec3d location : knownLocations) {
-            if (horizontalDistance(location, echo.getPos()) >= config.originalMinimumMovementDistance()
-                    && horizontalDistance(location, echo.getPos()) <= config.originalMaximumMovementDistance()) {
+            if (horizontalDistance(location, echo.getEntityPos()) >= config.originalMinimumMovementDistance()
+                    && horizontalDistance(location, echo.getEntityPos()) <= config.originalMaximumMovementDistance()) {
                 var routable = OriginalRoutePlanner.findRoutableStandingNear(world, echo, location, 1.0D, 2.5D,
                         config.originalMaximumWaypoints());
                 if (routable.isPresent()) {
@@ -180,11 +180,11 @@ public final class OriginalActionPlanFactory {
         Vec3d preferred = anchor.add(direction.x, 0.0D, direction.z);
         Vec3d resolved = OriginalRoutePlanner.findRoutableStandingNear(world, echo, preferred, 0.0D, 2.5D,
                 config.originalMaximumWaypoints()).orElse(null);
-        if (resolved != null && horizontalDistance(resolved, echo.getPos()) >= config.originalMinimumMovementDistance()
-                && horizontalDistance(resolved, echo.getPos()) <= config.originalMaximumMovementDistance()) {
+        if (resolved != null && horizontalDistance(resolved, echo.getEntityPos()) >= config.originalMinimumMovementDistance()
+                && horizontalDistance(resolved, echo.getEntityPos()) <= config.originalMaximumMovementDistance()) {
             return resolved;
         }
-        return OriginalRoutePlanner.findRoutableStandingNear(world, echo, echo.getPos(),
+        return OriginalRoutePlanner.findRoutableStandingNear(world, echo, echo.getEntityPos(),
                 config.originalMinimumMovementDistance(), Math.min(8.0D, config.originalMaximumMovementDistance()),
                 config.originalMaximumWaypoints())
                 .orElse(anchor);
@@ -192,16 +192,16 @@ public final class OriginalActionPlanFactory {
 
     private static Vec3d exitDestination(ServerWorld world, EchoEntity echo, ServerPlayerEntity player,
                                          Vec3d anchor, EchoConfig config) {
-        Vec3d away = anchor.subtract(player.getPos());
+        Vec3d away = anchor.subtract(player.getEntityPos());
         if (away.lengthSquared() < 0.01D) {
             away = player.getRotationVec(1.0F).multiply(-1.0D);
         }
         double distance = Math.min(config.originalMaximumMovementDistance(),
                 Math.max(config.originalMinimumMovementDistance(), 6.0D));
-        Vec3d preferred = echo.getPos().add(away.normalize().multiply(distance));
+        Vec3d preferred = echo.getEntityPos().add(away.normalize().multiply(distance));
         return OriginalRoutePlanner.findRoutableStandingNear(world, echo, preferred, 0.0D, 2.5D,
                         config.originalMaximumWaypoints())
-                .or(() -> OriginalRoutePlanner.findRoutableStandingNear(world, echo, echo.getPos(),
+                .or(() -> OriginalRoutePlanner.findRoutableStandingNear(world, echo, echo.getEntityPos(),
                         config.originalMinimumMovementDistance(), distance, config.originalMaximumWaypoints()))
                 .orElse(anchor);
     }

@@ -49,7 +49,7 @@ public final class AudioResidueManager {
         hydrate(player.getUuid());
         Deque<AudioResidue> history = residues.computeIfAbsent(player.getUuid(), ignored -> new ArrayDeque<>());
         history.addLast(new AudioResidue(id, event,
-                player.getWorld().getRegistryKey().getValue().toString(), position, volume, pitch, tick));
+                player.getEntityWorld().getRegistryKey().getValue().toString(), position, volume, pitch, tick));
         while (history.size() > MAX_CAPTURED_PER_PLAYER) {
             history.removeFirst();
         }
@@ -78,7 +78,7 @@ public final class AudioResidueManager {
         if (residue == null || !Registries.SOUND_EVENT.containsId(residue.soundId())) {
             return reject(config, target, "no allowed captured sound in the current loaded dimension");
         }
-        Optional<Vec3d> safe = SafeEchoPositionFinder.findSpawn(target.getWorld(), target,
+        Optional<Vec3d> safe = SafeEchoPositionFinder.findSpawn(target.getEntityWorld(), target,
                 residue.position().toCenterPos(), config);
         if (safe.isEmpty()) {
             return reject(config, target, "no valid empty playback position");
@@ -90,7 +90,7 @@ public final class AudioResidueManager {
             return reject(config, target, "master volume is muted");
         }
         if (config.sharedEchoes()) {
-            target.getWorld().playSound(null, pos.x, pos.y, pos.z, sound, SoundCategory.PLAYERS, volume, residue.pitch());
+            target.getEntityWorld().playSound(null, pos.x, pos.y, pos.z, sound, SoundCategory.PLAYERS, volume, residue.pitch());
         } else {
             target.networkHandler.sendPacket(new PlaySoundS2CPacket(Registries.SOUND_EVENT.getEntry(sound),
                     SoundCategory.PLAYERS, pos.x, pos.y, pos.z, volume, residue.pitch(),
@@ -151,10 +151,10 @@ public final class AudioResidueManager {
         if (history == null) {
             return null;
         }
-        String dimension = target.getWorld().getRegistryKey().getValue().toString();
+        String dimension = target.getEntityWorld().getRegistryKey().getValue().toString();
         for (AudioResidue residue : history.reversed()) {
             if (dimension.equals(residue.dimension())
-                    && target.getWorld().isChunkLoaded(residue.position())
+                    && target.getEntityWorld().isChunkLoaded(residue.position())
                     && residue.position().getSquaredDistance(target.getBlockPos()) <= 64.0D * 64.0D) {
                 return residue;
             }

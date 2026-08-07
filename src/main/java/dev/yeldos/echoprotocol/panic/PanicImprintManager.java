@@ -70,7 +70,7 @@ public final class PanicImprintManager {
                 capture(player, PanicTriggerType.LARGE_FALL, config, tick, false);
                 maxFall = 0.0F;
             }
-            if (tick % 20L == 0L && player.getWorld().getEntitiesByClass(HostileEntity.class,
+            if (tick % 20L == 0L && player.getEntityWorld().getEntitiesByClass(HostileEntity.class,
                     player.getBoundingBox().expand(12.0D), hostile -> hostile.getTarget() == player).size() >= 3) {
                 capture(player, PanicTriggerType.HOSTILE_CHASE, config, tick, false);
             }
@@ -119,7 +119,7 @@ public final class PanicImprintManager {
                 : player.getHealth() <= config.panicImprintHealthThreshold()
                 ? PanicImprint.HealthCategory.LOW : PanicImprint.HealthCategory.STABLE;
         PanicImprint imprint = new PanicImprint(frames,
-                player.getWorld().getRegistryKey().getValue().toString(), category, type,
+                player.getEntityWorld().getRegistryKey().getValue().toString(), category, type,
                 tick);
         hydrate(player.getUuid());
         Deque<PanicImprint> saved = imprints.computeIfAbsent(player.getUuid(), ignored -> new ArrayDeque<>());

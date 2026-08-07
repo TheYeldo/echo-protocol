@@ -44,7 +44,7 @@ public final class PeripheralEchoBehavior implements EchoBehaviorController {
     @Override
     public void tick(EchoEntity echo) {
         ServerPlayerEntity target = echo.getTargetPlayer();
-        if (target == null || !(echo.getWorld() instanceof ServerWorld world)
+        if (target == null || !(echo.getEntityWorld() instanceof ServerWorld world)
                 || !world.isChunkLoaded(echo.getBlockPos())) {
             echo.finishAndDiscard();
             return;
@@ -76,7 +76,7 @@ public final class PeripheralEchoBehavior implements EchoBehaviorController {
     }
 
     private void disappear(EchoEntity echo, ServerPlayerEntity target) {
-        EchoVisualEffects.disappear(target, context.config(), echo.getPos());
+        EchoVisualEffects.disappear(target, context.config(), echo.getEntityPos());
         echo.finishAndDiscard();
     }
 }

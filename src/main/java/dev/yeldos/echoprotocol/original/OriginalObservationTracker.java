@@ -47,7 +47,7 @@ public final class OriginalObservationTracker {
             double change = distance - previousDistance;
             approaching = change < -0.12D;
             retreating = change > 0.12D;
-            Vec3d toEcho = echo.getPos().subtract(player.getPos());
+            Vec3d toEcho = echo.getEntityPos().subtract(player.getEntityPos());
             following = approaching && distance < 10.0D && toEcho.lengthSquared() > 0.01D
                     && player.getRotationVec(1.0F).normalize().dotProduct(toEcho.normalize()) > 0.45D;
         }
@@ -60,7 +60,7 @@ public final class OriginalObservationTracker {
         if (distance < 0.001D) {
             return OriginalObservationState.DIRECT;
         }
-        HitResult hit = player.getWorld().raycast(new RaycastContext(player.getEyePos(), echo.getEyePos(),
+        HitResult hit = player.getEntityWorld().raycast(new RaycastContext(player.getEyePos(), echo.getEyePos(),
                 RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player));
         if (hit.getType() != HitResult.Type.MISS) {
             return OriginalObservationState.BLOCKED;

@@ -33,7 +33,7 @@ public final class FalseMemoryBehavior implements EchoBehaviorController {
     @Override
     public void tick(EchoEntity echo) {
         ServerPlayerEntity target = echo.getTargetPlayer();
-        if (target == null || !target.getWorld().isChunkLoaded(echo.getBlockPos())) {
+        if (target == null || !target.getEntityWorld().isChunkLoaded(echo.getBlockPos())) {
             echo.finishAndDiscard();
             return;
         }
@@ -97,8 +97,8 @@ public final class FalseMemoryBehavior implements EchoBehaviorController {
     private void disappear(EchoEntity echo, ServerPlayerEntity target) {
         state = EchoState.FADING;
         echo.setEchoState(state);
-        EchoSoundPlayer.playDisappear(target, EchoType.FALSE_MEMORY, context.config(), echo.getPos());
-        EchoVisualEffects.disappear(target, context.config(), echo.getPos());
+        EchoSoundPlayer.playDisappear(target, EchoType.FALSE_MEMORY, context.config(), echo.getEntityPos());
+        EchoVisualEffects.disappear(target, context.config(), echo.getEntityPos());
         echo.finishAndDiscard();
     }
 }

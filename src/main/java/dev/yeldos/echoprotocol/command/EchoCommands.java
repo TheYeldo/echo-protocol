@@ -245,7 +245,7 @@ public final class EchoCommands {
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
                                                 .executes(context -> {
                                                     ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
-                                                    boolean hasTextures = player.getGameProfile().getProperties().containsKey("textures");
+                                                    boolean hasTextures = player.getGameProfile().properties().containsKey("textures");
                                                     context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.skin_status",
                                                             player.getName().getString(), hasTextures, EchoProtocol.config().realPlayerSkins(), EchoProtocol.config().skinCacheEnabled()), false);
                                                     return 1;
@@ -286,8 +286,8 @@ public final class EchoCommands {
                                         .then(CommandManager.argument("player", EntityArgumentType.player())
                                                 .executes(context -> {
                                                     ServerPlayerEntity player = EntityArgumentType.getPlayer(context, "player");
-                                                    boolean found = SafeEchoPositionFinder.findSpawn(player.getWorld(), player,
-                                                            player.getPos().subtract(player.getRotationVec(1.0F).multiply(EchoProtocol.config().minimumEchoSpawnDistance())),
+                                                    boolean found = SafeEchoPositionFinder.findSpawn(player.getEntityWorld(), player,
+                                                            player.getEntityPos().subtract(player.getRotationVec(1.0F).multiply(EchoProtocol.config().minimumEchoSpawnDistance())),
                                                             EchoProtocol.config()).isPresent();
                                                     context.getSource().sendFeedback(() -> Text.translatable("text.echoprotocol.command.position_test",
                                                             player.getName().getString(), found), false);

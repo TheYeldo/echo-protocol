@@ -45,7 +45,7 @@ public final class EchoWorldInteraction {
 
     public void tick(EchoEntity echo) {
         age++;
-        if (!(echo.getWorld() instanceof ServerWorld world)) {
+        if (!(echo.getEntityWorld() instanceof ServerWorld world)) {
             return;
         }
         ServerPlayerEntity target = echo.getTargetPlayer();
@@ -55,7 +55,7 @@ public final class EchoWorldInteraction {
         }
 
         restoreExpired(world, target);
-        Vec3d current = echo.getPos();
+        Vec3d current = echo.getEntityPos();
         boolean moving = previousPosition != null
                 && previousPosition.squaredDistanceTo(current) >= MOVEMENT_EPSILON_SQUARED;
         previousPosition = current;
@@ -65,7 +65,7 @@ public final class EchoWorldInteraction {
     }
 
     public boolean performPlacement(EchoEntity echo, Vec3d preferredTarget) {
-        if (!(echo.getWorld() instanceof ServerWorld world)) {
+        if (!(echo.getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
         ServerPlayerEntity target = echo.getTargetPlayer();
@@ -91,7 +91,7 @@ public final class EchoWorldInteraction {
     }
 
     public void clear(EchoEntity echo) {
-        if (visualBlocks.isEmpty() || !(echo.getWorld() instanceof ServerWorld world)) {
+        if (visualBlocks.isEmpty() || !(echo.getEntityWorld() instanceof ServerWorld world)) {
             visualBlocks.clear();
             return;
         }
@@ -183,12 +183,12 @@ public final class EchoWorldInteraction {
     private static BlockPos findPlacement(ServerWorld world, EchoEntity echo, ServerPlayerEntity target,
                                           Vec3d preferredTarget) {
         Vec3d direction = preferredTarget == null ? facingDirection(echo)
-                : preferredTarget.subtract(echo.getPos()).multiply(1.0D, 0.0D, 1.0D);
+                : preferredTarget.subtract(echo.getEntityPos()).multiply(1.0D, 0.0D, 1.0D);
         if (direction.lengthSquared() < 0.01D) {
             direction = facingDirection(echo);
         }
         direction = direction.normalize();
-        BlockPos primary = BlockPos.ofFloored(echo.getPos().add(direction.multiply(1.25D)));
+        BlockPos primary = BlockPos.ofFloored(echo.getEntityPos().add(direction.multiply(1.25D)));
         Set<BlockPos> candidates = new LinkedHashSet<>();
         candidates.add(primary);
         candidates.add(primary.up());

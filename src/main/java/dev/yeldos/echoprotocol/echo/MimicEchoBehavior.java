@@ -149,18 +149,18 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
             }
         }
         if (context.config().echoMovesWhenUnobserved() && !EchoVisibility.isLookingAt(target, echo, 0.68D) && stateAge % 45 == 0) {
-            Vec3d closer = target.getPos().subtract(target.getRotationVec(1.0F).multiply(3.2D));
+            Vec3d closer = target.getEntityPos().subtract(target.getRotationVec(1.0F).multiply(3.2D));
             if (echo.moveToward(closer, 0.75D)) {
                 context.markObserved();
                 if (context.awardsProgress()) {
                     context.stageManager().grant(target, "do_not_look_away");
                     context.stageManager().grant(target, "behind_you");
                 }
-                EchoSoundPlayer.playUnseenMove(target, context.config(), echo.getPos());
+                EchoSoundPlayer.playUnseenMove(target, context.config(), echo.getEntityPos());
             }
         }
         if (stateAge > 140) {
-            boolean hostile = target.getWorld().getDifficulty() != Difficulty.PEACEFUL
+            boolean hostile = target.getEntityWorld().getDifficulty() != Difficulty.PEACEFUL
                     && (forcedHostile || (context.config().mimicChaseEnabled() && ThreadLocalRandom.current().nextInt(4) == 0));
             transition(hostile ? EchoState.THREATENING : EchoState.APPROACHING, echo);
         }
@@ -169,7 +169,7 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     private void tickApproaching(EchoEntity echo, ServerPlayerEntity target) {
         echo.lookAtTarget(0.2F);
         if (!EchoVisibility.isLookingAt(target, echo, 0.7D)) {
-            Vec3d closer = target.getPos().subtract(target.getRotationVec(1.0F).multiply(2.4D));
+            Vec3d closer = target.getEntityPos().subtract(target.getRotationVec(1.0F).multiply(2.4D));
             echo.moveToward(closer, 0.08D);
         }
         echo.setReplayOpacity(0.4F);
@@ -179,7 +179,7 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     }
 
     private void tickThreatening(EchoEntity echo, ServerPlayerEntity target) {
-        if (target.getWorld().getDifficulty() == Difficulty.PEACEFUL) {
+        if (target.getEntityWorld().getDifficulty() == Difficulty.PEACEFUL) {
             transition(EchoState.DISAPPEARING, echo);
             return;
         }
@@ -187,11 +187,11 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         echo.setReplayOpacity(context.config().mimicThreateningOpacity());
         if (stateAge == 1) {
             target.addStatusEffect(new StatusEffectInstance(StatusEffects.DARKNESS, 45, 0, false, false, true));
-            EchoSoundPlayer.playThreat(target, context.config(), echo.getPos());
+            EchoSoundPlayer.playThreat(target, context.config(), echo.getEntityPos());
         }
         if (context.config().mimicChaseEnabled()) {
             chaseTicks++;
-            Vec3d destination = target.getPos().subtract(target.getRotationVec(1.0F).multiply(1.6D));
+            Vec3d destination = target.getEntityPos().subtract(target.getRotationVec(1.0F).multiply(1.6D));
             echo.moveToward(destination, 0.12D);
             tryDamage(echo, target);
         }
@@ -207,8 +207,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     private void tickDisappearing(EchoEntity echo) {
         echo.setReplayOpacity(Math.max(0.0F, 0.4F - stateAge / 45.0F));
         if (stateAge > 45) {
-            EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.MIMIC, context.config(), echo.getPos());
-            EchoVisualEffects.disappear(echo.getTargetPlayer(), context.config(), echo.getPos());
+            EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.MIMIC, context.config(), echo.getEntityPos());
+            EchoVisualEffects.disappear(echo.getTargetPlayer(), context.config(), echo.getEntityPos());
             echo.finishAndDiscard();
         }
     }
@@ -249,12 +249,12 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
                 || context.config().mimicDamage() <= 0.0F
                 || hits >= context.config().mimicMaxHitsPerEvent()
                 || age - lastHitAge < 40
-                || target.getWorld().getDifficulty() == Difficulty.PEACEFUL
+                || target.getEntityWorld().getDifficulty() == Difficulty.PEACEFUL
                 || echo.squaredDistanceTo(target) > 3.0D) {
             return;
         }
         float damage = Math.min(context.config().mimicDamage(), Math.max(0.0F, target.getHealth() - 1.0F));
-        if (damage > 0.0F && target.damage(target.getWorld(),
+        if (damage > 0.0F && target.damage(target.getEntityWorld(),
                 echo.getDamageSources().mobAttack(echo), damage)) {
             hits++;
             lastHitAge = age;

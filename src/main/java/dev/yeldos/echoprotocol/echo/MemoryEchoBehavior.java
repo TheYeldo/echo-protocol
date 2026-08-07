@@ -31,8 +31,8 @@ public final class MemoryEchoBehavior implements EchoBehaviorController {
         if (!echo.applyReplayFrame(age, false)) {
             state = EchoState.FADING;
             echo.setEchoState(state);
-            EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.MEMORY, dev.yeldos.echoprotocol.EchoProtocol.config(), echo.getPos());
-            EchoVisualEffects.disappear(echo.getTargetPlayer(), dev.yeldos.echoprotocol.EchoProtocol.config(), echo.getPos());
+            EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.MEMORY, dev.yeldos.echoprotocol.EchoProtocol.config(), echo.getEntityPos());
+            EchoVisualEffects.disappear(echo.getTargetPlayer(), dev.yeldos.echoprotocol.EchoProtocol.config(), echo.getEntityPos());
             echo.finishAndDiscard();
             return;
         }

@@ -30,7 +30,7 @@ public final class SafeEchoPositionFinder {
             double distance = MathHelper.lerp(i / (double) Math.max(1, attempts - 1), config.minimumEchoSpawnDistance(), config.maximumEchoSpawnDistance());
             double angle = Math.PI + ThreadLocalRandom.current().nextDouble(-1.25D, 1.25D);
             Vec3d rotated = rotateY(look, angle).multiply(distance);
-            Vec3d candidate = dropToGround(world, target.getPos().add(rotated));
+            Vec3d candidate = dropToGround(world, target.getEntityPos().add(rotated));
             if (isValid(world, target, candidate, config, true)
                     && ViewAngle.outsideCentralView(look, candidate.add(0.0D, 1.0D, 0.0D)
                     .subtract(target.getEyePos()), 0.65D)) {
@@ -46,7 +46,7 @@ public final class SafeEchoPositionFinder {
         for (int i = 0; i < attempts; i++) {
             double angle = Math.PI + ThreadLocalRandom.current().nextDouble(-1.8D, 1.8D);
             double distance = ThreadLocalRandom.current().nextDouble(config.minimumEchoSpawnDistance(), Math.max(config.minimumEchoSpawnDistance() + 1, config.maximumEchoSpawnDistance()));
-            Vec3d candidate = dropToGround(world, target.getPos().add(rotateY(look, angle).multiply(distance)));
+            Vec3d candidate = dropToGround(world, target.getEntityPos().add(rotateY(look, angle).multiply(distance)));
             if (isValid(world, target, candidate, config, true) && !hasClearBlockLine(world, target, target.getEyePos(), candidate.add(0.0D, 1.2D, 0.0D))) {
                 return Optional.of(candidate);
             }
@@ -62,7 +62,7 @@ public final class SafeEchoPositionFinder {
             double angle = side * ThreadLocalRandom.current().nextDouble(1.05D, 1.75D);
             double distance = ThreadLocalRandom.current().nextDouble(config.minimumEchoSpawnDistance(),
                     Math.max(config.minimumEchoSpawnDistance() + 1.0D, config.maximumEchoSpawnDistance()));
-            Vec3d candidate = dropToGround(world, target.getPos().add(rotateY(look, angle).multiply(distance)));
+            Vec3d candidate = dropToGround(world, target.getEntityPos().add(rotateY(look, angle).multiply(distance)));
             if (isValid(world, target, candidate, config, true)
                     && ViewAngle.outsideCentralView(look, candidate.add(0.0D, 1.0D, 0.0D)
                     .subtract(target.getEyePos()), 0.65D)) {
@@ -108,7 +108,7 @@ public final class SafeEchoPositionFinder {
         for (int ring = 0; ring < 3; ring++) {
             double distance = MathHelper.lerp(ring / 2.0D, minimum, maximum);
             for (double angle : angles) {
-                Vec3d candidate = dropToGround(world, target.getPos().add(rotateY(look, angle).multiply(distance)));
+                Vec3d candidate = dropToGround(world, target.getEntityPos().add(rotateY(look, angle).multiply(distance)));
                 if (isValid(world, target, candidate, config, true, false)
                         && hasClearBlockLine(world, target, target.getEyePos(), candidate.add(0.0D, 1.25D, 0.0D))) {
                     return Optional.of(candidate);

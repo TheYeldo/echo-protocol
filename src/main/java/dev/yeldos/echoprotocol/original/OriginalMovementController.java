@@ -30,7 +30,7 @@ public final class OriginalMovementController {
         waypointIndex = 0;
         blockedAttempts = 0;
         active = true;
-        stuckTracker.reset(echo.getPos());
+        stuckTracker.reset(echo.getEntityPos());
     }
 
     public void updateDynamicDestination(EchoEntity echo, Vec3d target) {
@@ -38,12 +38,12 @@ public final class OriginalMovementController {
             destination = target;
             waypoints = List.of();
             waypointIndex = 0;
-            stuckTracker.reset(echo.getPos());
+            stuckTracker.reset(echo.getEntityPos());
         }
     }
 
     public OriginalMovementResult tick(EchoEntity echo, OriginalAction action) {
-        if (!(echo.getWorld() instanceof ServerWorld world) || destination == null) {
+        if (!(echo.getEntityWorld() instanceof ServerWorld world) || destination == null) {
             stop(echo);
             return OriginalMovementResult.NO_ROUTE;
         }
@@ -56,11 +56,11 @@ public final class OriginalMovementController {
             }
             waypoints = route.get();
             waypointIndex = 0;
-            stuckTracker.reset(echo.getPos());
+            stuckTracker.reset(echo.getEntityPos());
         }
 
         Vec3d waypoint = waypoints.get(waypointIndex);
-        double remaining = echo.getPos().distanceTo(waypoint);
+        double remaining = echo.getEntityPos().distanceTo(waypoint);
         double arrivalRadius = waypointIndex == waypoints.size() - 1
                 ? config.originalArrivalRadius() : Math.min(0.30D, config.originalArrivalRadius());
         if (remaining <= arrivalRadius) {
@@ -70,10 +70,10 @@ public final class OriginalMovementController {
                 return OriginalMovementResult.ARRIVED;
             }
             waypoint = waypoints.get(waypointIndex);
-            remaining = echo.getPos().distanceTo(waypoint);
+            remaining = echo.getEntityPos().distanceTo(waypoint);
         }
 
-        Vec3d delta = waypoint.subtract(echo.getPos());
+        Vec3d delta = waypoint.subtract(echo.getEntityPos());
         float turnDifference = echo.turnBodyToward(delta, config.originalBodyTurnSpeedDegrees());
         if (turnDifference > 52.0F && currentSpeed < config.originalSlowWalkSpeed() * 0.7D) {
             currentSpeed = Math.max(0.0D, currentSpeed - config.originalDeceleration());
@@ -100,8 +100,8 @@ public final class OriginalMovementController {
             stop(echo);
             return OriginalMovementResult.ARRIVED;
         }
-        Vec3d next = echo.getPos().add(step);
-        if (!OriginalRoutePlanner.safeStep(world, echo, echo.getPos(), next)) {
+        Vec3d next = echo.getEntityPos().add(step);
+        if (!OriginalRoutePlanner.safeStep(world, echo, echo.getEntityPos(), next)) {
             blockedAttempts++;
             replanCount++;
             waypoints = List.of();
@@ -114,7 +114,7 @@ public final class OriginalMovementController {
         boolean running = action == OriginalAction.FAST_WALK || action == OriginalAction.APPROACH
                 || (action == OriginalAction.RETREAT && currentSpeed > config.originalWalkSpeed());
         echo.moveOriginalStep(step, running);
-        if (stuckTracker.tick(echo.getPos(), config.originalStuckWindowTicks(),
+        if (stuckTracker.tick(echo.getEntityPos(), config.originalStuckWindowTicks(),
                 config.originalStuckMinimumProgress())) {
             replanCount++;
             waypoints = List.of();
@@ -137,7 +137,7 @@ public final class OriginalMovementController {
         waypointIndex = 0;
         currentSpeed = 0.0D;
         replanCount++;
-        stuckTracker.reset(echo.getPos());
+        stuckTracker.reset(echo.getEntityPos());
     }
 
     private double speedFor(OriginalAction action) {
@@ -156,7 +156,7 @@ public final class OriginalMovementController {
     public int waypointIndex() { return waypointIndex; }
     public int waypointCount() { return waypoints.size(); }
     public double distanceRemaining(EchoEntity echo) {
-        return destination == null ? 0.0D : echo.getPos().distanceTo(destination);
+        return destination == null ? 0.0D : echo.getEntityPos().distanceTo(destination);
     }
     public int replanCount() { return replanCount; }
     public int stuckCount() { return stuckTracker.stuckCount(); }

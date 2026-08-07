@@ -86,7 +86,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
             echo.setReplayOpacity(flicker);
         }
         if (stateAge % 18 == 0) {
-            EchoVisualEffects.corruptedAfterimage(target, context.config(), echo.getPos());
+            EchoVisualEffects.corruptedAfterimage(target, context.config(), echo.getEntityPos());
         }
         if (!desyncObserved && stateAge >= 8 && EchoVisibility.isLookingAt(target, echo, 0.72D)) {
             desyncObserved = true;
@@ -123,7 +123,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         echo.lookAtTarget(0.12F);
         boolean observed = EchoVisibility.isLookingAt(target, echo, 0.72D);
         if (!observed || context.config().echoMovesWhenUnobserved()) {
-            Vec3d destination = target.getPos().subtract(target.getRotationVec(1.0F).multiply(2.8D));
+            Vec3d destination = target.getEntityPos().subtract(target.getRotationVec(1.0F).multiply(2.8D));
             echo.moveToward(destination, observed ? 0.025D : 0.07D);
         }
         if (stateAge > 80 || echo.squaredDistanceTo(target) < 6.0D) {
@@ -133,8 +133,8 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
 
     private void tickHiding(EchoEntity echo, ServerPlayerEntity target) {
         echo.lookAtTarget(0.08F);
-        if (stateAge == 1 && echo.getWorld() instanceof ServerWorld world) {
-            hidingSpot = SafeEchoPositionFinder.findHidden(world, target, echo.getPos(), context.config()).orElse(null);
+        if (stateAge == 1 && echo.getEntityWorld() instanceof ServerWorld world) {
+            hidingSpot = SafeEchoPositionFinder.findHidden(world, target, echo.getEntityPos(), context.config()).orElse(null);
         }
         boolean observed = EchoVisibility.isLookingAt(target, echo, 0.70D);
         if (context.config().echoMovesWhenUnobserved() && !observed && hidingSpot != null) {
@@ -154,8 +154,8 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         echo.lookAtTarget(0.05F);
         echo.setReplayOpacity(Math.max(0.0F, 0.35F - stateAge / 35.0F));
         if (stateAge > 35) {
-            EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.CORRUPTED, context.config(), echo.getPos());
-            EchoVisualEffects.disappear(echo.getTargetPlayer(), context.config(), echo.getPos());
+            EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.CORRUPTED, context.config(), echo.getEntityPos());
+            EchoVisualEffects.disappear(echo.getTargetPlayer(), context.config(), echo.getEntityPos());
             echo.finishAndDiscard();
         }
     }

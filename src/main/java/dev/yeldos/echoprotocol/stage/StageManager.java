@@ -107,7 +107,7 @@ public final class StageManager {
             return;
         }
         PlayerEchoState state = state(player.getUuid());
-        String dimension = player.getWorld().getRegistryKey().getValue().toString();
+        String dimension = player.getEntityWorld().getRegistryKey().getValue().toString();
         for (FamiliarLocation location : state.familiarLocations()) {
             if (location.canMerge(type, dimension, pos)) {
                 location.markSeen(tick);
@@ -143,11 +143,11 @@ public final class StageManager {
         if ("not_me".equals(path) || "do_not_look_away".equals(path)) {
             state(player.getUuid()).setMimicIndependentActionSeen(true);
         }
-        AdvancementEntry root = player.getServer().getAdvancementLoader().get(EchoProtocol.id("root"));
+        AdvancementEntry root = player.getEntityWorld().getServer().getAdvancementLoader().get(EchoProtocol.id("root"));
         if (root != null) {
             player.getAdvancementTracker().grantCriterion(root, "trigger");
         }
-        AdvancementEntry advancement = player.getServer().getAdvancementLoader().get(EchoProtocol.id(path));
+        AdvancementEntry advancement = player.getEntityWorld().getServer().getAdvancementLoader().get(EchoProtocol.id(path));
         if (advancement != null) {
             player.getAdvancementTracker().grantCriterion(advancement, "trigger");
         }

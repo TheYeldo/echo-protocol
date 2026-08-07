@@ -40,7 +40,7 @@ public final class ContradictionBehavior implements EchoBehaviorController {
     public void tick(EchoEntity echo) {
         ServerPlayerEntity target = echo.getTargetPlayer();
         if (target == null || age++ >= ContradictionPlan.MAXIMUM_LIFETIME_TICKS
-                || !target.getWorld().isChunkLoaded(echo.getBlockPos())) {
+                || !target.getEntityWorld().isChunkLoaded(echo.getBlockPos())) {
             finish(echo);
             return;
         }

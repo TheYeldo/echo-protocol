@@ -125,13 +125,13 @@ public final class EchoEntity extends MobEntity {
 
     @Override
     public void tick() {
-        if (!getWorld().isClient() && echoType == EchoType.ORIGINAL) {
+        if (!getEntityWorld().isClient() && echoType == EchoType.ORIGINAL) {
             setVelocity(Vec3d.ZERO);
         }
         super.tick();
         this.noClip = true;
         this.setNoGravity(true);
-        if (getWorld().isClient()) {
+        if (getEntityWorld().isClient()) {
             return;
         }
         if (behavior == null) {
@@ -280,13 +280,13 @@ public final class EchoEntity extends MobEntity {
     }
 
     public boolean moveToward(Vec3d target, double maxStep) {
-        Vec3d delta = target.subtract(getPos());
+        Vec3d delta = target.subtract(getEntityPos());
         double distance = delta.length();
         if (distance < 0.05D) {
             return false;
         }
         Vec3d step = delta.normalize().multiply(Math.min(maxStep, distance));
-        Vec3d destination = getPos().add(step);
+        Vec3d destination = getEntityPos().add(step);
         if (!isSafeEchoPosition(destination)) {
             return false;
         }
@@ -374,10 +374,10 @@ public final class EchoEntity extends MobEntity {
     }
 
     public boolean isSafeEchoPosition(Vec3d pos) {
-        if (!(getWorld() instanceof ServerWorld world)) {
+        if (!(getEntityWorld() instanceof ServerWorld world)) {
             return false;
         }
-        Vec3d offset = pos.subtract(getPos());
+        Vec3d offset = pos.subtract(getEntityPos());
         BlockPos blockPos = BlockPos.ofFloored(pos);
         net.minecraft.util.math.Box moved = getBoundingBox().offset(offset);
         return (world.isSpaceEmpty(this, moved)
@@ -423,7 +423,7 @@ public final class EchoEntity extends MobEntity {
     }
 
     public ServerPlayerEntity getTargetPlayer() {
-        if (!(getWorld() instanceof ServerWorld world)) {
+        if (!(getEntityWorld() instanceof ServerWorld world)) {
             return null;
         }
         return getTargetUuid().map(uuid -> world.getPlayerByUuid(uuid) instanceof ServerPlayerEntity player ? player : null).orElse(null);

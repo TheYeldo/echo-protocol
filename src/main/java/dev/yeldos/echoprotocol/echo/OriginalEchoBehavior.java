@@ -96,7 +96,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     @Override
     public void onStarted(EchoEntity echo) {
         ServerPlayerEntity target = echo.getTargetPlayer();
-        if (target == null || !(echo.getWorld() instanceof ServerWorld world)) {
+        if (target == null || !(echo.getEntityWorld() instanceof ServerWorld world)) {
             echo.finishAndDiscard();
             return;
         }
@@ -110,7 +110,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     @Override
     public void tick(EchoEntity echo) {
         ServerPlayerEntity target = echo.getTargetPlayer();
-        if (target == null || !(echo.getWorld() instanceof ServerWorld world)
+        if (target == null || !(echo.getEntityWorld() instanceof ServerWorld world)
                 || !world.isChunkLoaded(echo.getBlockPos()) || target.isDead() || target.getHealth() <= 0.0F) {
             echo.finishAndDiscard();
             return;
@@ -227,7 +227,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
 
     private boolean tickRotate(EchoEntity echo, OriginalMovementSegment segment) {
         Vec3d target = segment.target() == null ? anchor : segment.target();
-        float difference = echo.turnBodyToward(target.subtract(echo.getPos()),
+        float difference = echo.turnBodyToward(target.subtract(echo.getEntityPos()),
                 context.config().originalBodyTurnSpeedDegrees());
         echo.turnHeadToward(target.add(0.0D, 1.2D, 0.0D), context.config().originalHeadTurnSpeedDegrees(),
                 8.0F, 55.0F);
@@ -271,7 +271,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     }
 
     private boolean tickLookAtPlayer(EchoEntity echo, ServerPlayerEntity target) {
-        echo.turnBodyToward(target.getPos().subtract(echo.getPos()),
+        echo.turnBodyToward(target.getEntityPos().subtract(echo.getEntityPos()),
                 context.config().originalBodyTurnSpeedDegrees() * 0.7F);
         echo.turnHeadToward(target.getEyePos(), context.config().originalHeadTurnSpeedDegrees(), 9.0F, 72.0F);
         return segmentAge >= segmentDuration;
@@ -279,7 +279,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
 
     private boolean tickLookAtAnchor(EchoEntity echo, OriginalMovementSegment segment) {
         Vec3d look = segment.target() == null ? anchor : segment.target();
-        echo.turnBodyToward(look.subtract(echo.getPos()), context.config().originalBodyTurnSpeedDegrees() * 0.65F);
+        echo.turnBodyToward(look.subtract(echo.getEntityPos()), context.config().originalBodyTurnSpeedDegrees() * 0.65F);
         echo.turnHeadToward(look.add(0.0D, 0.7D, 0.0D), context.config().originalHeadTurnSpeedDegrees(),
                 7.0F, 55.0F);
         return segmentAge >= segmentDuration;
@@ -340,7 +340,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
 
     private boolean tickDisappear(EchoEntity echo, ServerPlayerEntity target) {
         if (!disappearSoundPlayed) {
-            EchoSoundPlayer.playDisappear(target, EchoType.ORIGINAL, context.config(), echo.getPos());
+            EchoSoundPlayer.playDisappear(target, EchoType.ORIGINAL, context.config(), echo.getEntityPos());
             disappearSoundPlayed = true;
         }
         float progress = MathHelper.clamp(segmentAge / (float) Math.max(1, segmentDuration), 0.0F, 1.0F);
@@ -363,10 +363,10 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
             return;
         }
         if (movementFailures <= context.config().originalMaximumReplans()
-                && echo.getWorld() instanceof ServerWorld world && segment.target() != null) {
+                && echo.getEntityWorld() instanceof ServerWorld world && segment.target() != null) {
             Vec3d alternate = OriginalRoutePlanner.findStandingNear(world, echo, segment.target(), 2.5D, 5.0D)
                     .orElse(null);
-            if (alternate != null && horizontalDistance(alternate, echo.getPos()) >= 2.5D) {
+            if (alternate != null && horizontalDistance(alternate, echo.getEntityPos()) >= 2.5D) {
                 movement.begin(echo, alternate);
                 return;
             }
@@ -380,7 +380,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     private void tickFallback(EchoEntity echo, ServerPlayerEntity target) {
         movement.stop(echo);
         if (fallbackTicks > 18) {
-            echo.turnBodyToward(target.getPos().subtract(echo.getPos()),
+            echo.turnBodyToward(target.getEntityPos().subtract(echo.getEntityPos()),
                     context.config().originalBodyTurnSpeedDegrees() * 0.65F);
             echo.turnHeadToward(target.getEyePos(), context.config().originalHeadTurnSpeedDegrees(), 7.0F, 70.0F);
         } else {
@@ -457,16 +457,16 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
             return;
         }
         if (!confrontationSoundPlayed) {
-            EchoSoundPlayer.playOriginalConfrontation(target, context.config(), echo.getPos());
+            EchoSoundPlayer.playOriginalConfrontation(target, context.config(), echo.getEntityPos());
             confrontationSoundPlayed = true;
         }
         EchoConfig config = context.config();
         if (confrontationDamageApplied || !config.originalDamageEnabled()
-                || target.getWorld().getDifficulty() == Difficulty.PEACEFUL) {
+                || target.getEntityWorld().getDifficulty() == Difficulty.PEACEFUL) {
             return;
         }
         float damage = Math.min(config.originalDamage(), Math.max(0.0F, target.getHealth() - 1.0F));
-        if (damage > 0.0F && target.damage(target.getWorld(),
+        if (damage > 0.0F && target.damage(target.getEntityWorld(),
                 echo.getDamageSources().mobAttack(echo), damage)) {
             confrontationDamageApplied = true;
         }
@@ -477,19 +477,19 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
     }
 
     private static Vec3d approachDestination(EchoEntity echo, ServerPlayerEntity target, double standOff) {
-        Vec3d away = echo.getPos().subtract(target.getPos());
+        Vec3d away = echo.getEntityPos().subtract(target.getEntityPos());
         if (away.lengthSquared() < 0.01D) {
             away = target.getRotationVec(1.0F).multiply(-1.0D);
         }
-        return target.getPos().add(away.normalize().multiply(standOff));
+        return target.getEntityPos().add(away.normalize().multiply(standOff));
     }
 
     private static Vec3d retreatDestination(EchoEntity echo, ServerPlayerEntity target, double distance) {
-        Vec3d away = echo.getPos().subtract(target.getPos());
+        Vec3d away = echo.getEntityPos().subtract(target.getEntityPos());
         if (away.lengthSquared() < 0.01D) {
             away = target.getRotationVec(1.0F).multiply(-1.0D);
         }
-        return echo.getPos().add(away.normalize().multiply(distance));
+        return echo.getEntityPos().add(away.normalize().multiply(distance));
     }
 
     private static boolean isMovement(OriginalAction action) {

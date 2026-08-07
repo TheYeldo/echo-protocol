@@ -5,18 +5,21 @@ import dev.yeldos.echoprotocol.echo.EchoState;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.command.OrderedRenderCommandQueue;
 import net.minecraft.client.render.entity.BipedEntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.model.BipedEntityModel;
+import net.minecraft.client.render.entity.model.EntityModelLayer;
 import net.minecraft.client.render.entity.model.EntityModelLayers;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
-import net.minecraft.client.util.SkinTextures;
+import net.minecraft.client.render.state.CameraRenderState;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.entity.player.PlayerSkinType;
+import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.util.Arm;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.ColorHelper;
 
 public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEntityRenderState, PlayerEntityModel> {
     private final PlayerEntityModel classicModel;
@@ -25,7 +28,11 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
     public EchoRenderer(EntityRendererFactory.Context context) {
         super(context, new PlayerEntityModel(context.getPart(EntityModelLayers.PLAYER), false), 0.0F);
         this.classicModel = this.model;
-        this.slimModel = new PlayerEntityModel(context.getPart(EntityModelLayers.PLAYER_SLIM), true);
+        // Yarn 1.21.9 maps the slim player layer and its equipment-layer bundle
+        // to the same field name. Constructing the canonical layer key avoids
+        // selecting the equipment bundle while retaining vanilla model data.
+        EntityModelLayer slimLayer = new EntityModelLayer(Identifier.ofVanilla("player_slim"), "main");
+        this.slimModel = new PlayerEntityModel(context.getPart(slimLayer), true);
     }
 
     @Override
@@ -38,8 +45,8 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         super.updateRenderState(entity, state, tickDelta);
         EchoRenderState echoState = (EchoRenderState) state;
         SkinTextures textures = EchoSkinResolver.resolve(entity);
-        echoState.texture = textures.texture();
-        echoState.slim = textures.model() == SkinTextures.Model.SLIM;
+        echoState.texture = textures.body().texturePath();
+        echoState.slim = textures.model() == PlayerSkinType.SLIM;
         echoState.opacity = entity.getReplayOpacity();
         MinecraftClient client = MinecraftClient.getInstance();
         echoState.visible = client.player != null && entity.visibleTo(client.player.getUuid());
@@ -67,7 +74,7 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
 
     @Override
     public void render(PlayerEntityRenderState state, MatrixStack matrices,
-                       VertexConsumerProvider vertexConsumers, int light) {
+                       OrderedRenderCommandQueue commandQueue, CameraRenderState cameraState) {
         EchoRenderState echoState = (EchoRenderState) state;
         if (!echoState.visible || echoState.opacity <= 0.01F) {
             return;
@@ -75,7 +82,7 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         this.model = echoState.slim ? slimModel : classicModel;
         matrices.push();
         applyTypeVisualOffset(echoState, matrices);
-        super.render(state, matrices, lightAware(vertexConsumers, echoState.opacity), light);
+        super.render(state, matrices, commandQueue, cameraState);
         matrices.pop();
     }
 
@@ -89,8 +96,9 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         }
     }
 
-    private VertexConsumerProvider lightAware(VertexConsumerProvider vertexConsumers, float opacity) {
-        return new GhostAlphaVertexConsumerProvider(vertexConsumers, opacity);
+    @Override
+    protected int getMixColor(PlayerEntityRenderState state) {
+        return ColorHelper.getWhite(((EchoRenderState) state).opacity);
     }
 
     @Override
@@ -118,56 +126,4 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         private boolean visible;
     }
 
-    private record GhostAlphaVertexConsumerProvider(VertexConsumerProvider delegate, float alpha) implements VertexConsumerProvider {
-        @Override
-        public VertexConsumer getBuffer(RenderLayer layer) {
-            return new GhostAlphaVertexConsumer(delegate.getBuffer(layer), alpha);
-        }
-    }
-
-    private static final class GhostAlphaVertexConsumer implements VertexConsumer {
-        private final VertexConsumer delegate;
-        private final float alpha;
-
-        private GhostAlphaVertexConsumer(VertexConsumer delegate, float alpha) {
-            this.delegate = delegate;
-            this.alpha = Math.max(0.0F, Math.min(1.0F, alpha));
-        }
-
-        @Override
-        public VertexConsumer vertex(float x, float y, float z) {
-            delegate.vertex(x, y, z);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer color(int red, int green, int blue, int alpha) {
-            delegate.color(red, green, blue, Math.round(alpha * this.alpha));
-            return this;
-        }
-
-        @Override
-        public VertexConsumer texture(float u, float v) {
-            delegate.texture(u, v);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer overlay(int u, int v) {
-            delegate.overlay(u, v);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer light(int u, int v) {
-            delegate.light(u, v);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer normal(float x, float y, float z) {
-            delegate.normal(x, y, z);
-            return this;
-        }
-    }
 }

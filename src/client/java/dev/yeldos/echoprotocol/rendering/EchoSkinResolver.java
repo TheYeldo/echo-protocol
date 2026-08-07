@@ -6,7 +6,7 @@ import dev.yeldos.echoprotocol.entity.EchoEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.util.DefaultSkinHelper;
-import net.minecraft.client.util.SkinTextures;
+import net.minecraft.entity.player.SkinTextures;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -45,7 +45,7 @@ public final class EchoSkinResolver {
             }
         }
         if (textures == null) {
-            textures = client.getSkinProvider().getSkinTextures(new GameProfile(uuid, "Echo"));
+            textures = client.getSkinProvider().supplySkinTextures(new GameProfile(uuid, "Echo"), true).get();
         }
         if (textures == null) {
             textures = DefaultSkinHelper.getSkinTextures(uuid);

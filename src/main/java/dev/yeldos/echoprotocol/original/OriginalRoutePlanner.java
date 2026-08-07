@@ -33,7 +33,7 @@ public final class OriginalRoutePlanner {
 
     public static Optional<List<Vec3d>> plan(ServerWorld world, EchoEntity echo, Vec3d requestedTarget,
                                              int maximumWaypoints) {
-        BlockPos start = BlockPos.ofFloored(echo.getPos());
+        BlockPos start = BlockPos.ofFloored(echo.getEntityPos());
         Optional<BlockPos> resolved = resolveTarget(world, echo, requestedTarget);
         if (resolved.isEmpty()) {
             return Optional.empty();
@@ -42,7 +42,7 @@ public final class OriginalRoutePlanner {
         if (start.getSquaredDistance(goal) > MAXIMUM_LOCAL_RADIUS * MAXIMUM_LOCAL_RADIUS) {
             return Optional.empty();
         }
-        if (safeSegment(world, echo, echo.getPos(), Vec3d.ofBottomCenter(goal))) {
+        if (safeSegment(world, echo, echo.getEntityPos(), Vec3d.ofBottomCenter(goal))) {
             return Optional.of(List.of(Vec3d.ofBottomCenter(goal)));
         }
 
@@ -82,7 +82,7 @@ public final class OriginalRoutePlanner {
             return Optional.empty();
         }
         List<Vec3d> raw = reconstruct(cameFrom, immutableStart, reached);
-        List<Vec3d> compressed = compress(world, echo, echo.getPos(), raw, Math.max(1, maximumWaypoints));
+        List<Vec3d> compressed = compress(world, echo, echo.getEntityPos(), raw, Math.max(1, maximumWaypoints));
         return compressed.isEmpty() ? Optional.empty() : Optional.of(compressed);
     }
 
@@ -103,7 +103,7 @@ public final class OriginalRoutePlanner {
                 }
                 Vec3d resolved = Vec3d.ofBottomCenter(standing.get());
                 double score = Math.abs(horizontalDistance(resolved, center) - minimumDistance)
-                        + horizontalDistance(resolved, echo.getPos()) * 0.02D;
+                        + horizontalDistance(resolved, echo.getEntityPos()) * 0.02D;
                 if (score < bestScore) {
                     best = resolved;
                     bestScore = score;
@@ -129,7 +129,7 @@ public final class OriginalRoutePlanner {
                     continue;
                 }
                 Vec3d resolved = Vec3d.ofBottomCenter(standing.get());
-                if (horizontalDistance(resolved, echo.getPos()) < 0.8D) {
+                if (horizontalDistance(resolved, echo.getEntityPos()) < 0.8D) {
                     continue;
                 }
                 if (routeAttempts++ >= 12) {
@@ -197,7 +197,7 @@ public final class OriginalRoutePlanner {
                 || floorState.getCollisionShape(world, feet.down()).isEmpty()) {
             return false;
         }
-        Vec3d offset = position.subtract(echo.getPos());
+        Vec3d offset = position.subtract(echo.getEntityPos());
         Box moved = echo.getBoundingBox().offset(offset);
         return world.isSpaceEmpty(echo, moved)
                 || EchoWorldInteraction.collisionContainsOnlyPassages(world, moved);
@@ -230,7 +230,7 @@ public final class OriginalRoutePlanner {
         if (!supported || unsafe(feetState) || unsafe(headState) || unsafe(floor) || unsafe(lowerFloor)) {
             return false;
         }
-        Vec3d offset = position.subtract(echo.getPos());
+        Vec3d offset = position.subtract(echo.getEntityPos());
         Box moved = echo.getBoundingBox().offset(offset);
         return world.isSpaceEmpty(echo, moved)
                 || EchoWorldInteraction.collisionContainsOnlyPassages(world, moved);

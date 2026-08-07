@@ -44,11 +44,11 @@ public final class PlayerHabitTracker {
         }
         PlayerHabitSummary summary = summary(player.getUuid());
         summary.observe(type,
-                player.getWorld().getRegistryKey().getValue().toString(), position, item, tick,
+                player.getEntityWorld().getRegistryKey().getValue().toString(), position, item, tick,
                 config.maximumTrackedHabits());
         PlayerHabitSummary.Habit updated = summary.entries().stream()
                 .filter(candidate -> candidate.type() == type
-                        && candidate.dimension().equals(player.getWorld().getRegistryKey().getValue().toString())
+                        && candidate.dimension().equals(player.getEntityWorld().getRegistryKey().getValue().toString())
                         && candidate.position().getSquaredDistance(position) <= 25.0D)
                 .findFirst().orElse(null);
         if (updated != null) {
