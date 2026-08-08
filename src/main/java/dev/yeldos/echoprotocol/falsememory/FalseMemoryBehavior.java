@@ -41,7 +41,10 @@ public final class FalseMemoryBehavior implements EchoBehaviorController {
         int prefixDuration = Math.max(1, (plan.realPrefix().size() - 1) * echo.sampleIntervalTicks());
         if (state == EchoState.REPLAYING) {
             echo.setEchoState(EchoState.REPLAYING);
-            echo.applyFrameSequence(plan.realPrefix(), age, true);
+            if (!echo.applyFrameSequence(plan.realPrefix(), age, true)) {
+                disappear(echo, target);
+                return;
+            }
             if (age >= prefixDuration) {
                 beginDeviation(echo);
             }

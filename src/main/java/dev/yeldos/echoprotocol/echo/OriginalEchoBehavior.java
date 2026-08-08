@@ -128,6 +128,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
             observedProgressGranted = true;
             context.markObserved();
             if (context.awardsProgress()) {
+                context.stageManager().grant(target, "the_original");
                 if (familiarAnchor) {
                     context.stageManager().grant(target, "my_place");
                 }
