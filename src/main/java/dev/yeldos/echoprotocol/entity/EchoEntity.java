@@ -8,6 +8,7 @@ import dev.yeldos.echoprotocol.echo.EchoType;
 import dev.yeldos.echoprotocol.interaction.EchoWorldInteraction;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
 import dev.yeldos.echoprotocol.privacy.EchoPrivacy;
+import dev.yeldos.echoprotocol.util.ReplayPathSafety;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity.RemovalReason;
 import net.minecraft.entity.EntityPose;
@@ -62,7 +63,7 @@ public final class EchoEntity extends MobEntity {
 
     public EchoEntity(EntityType<? extends MobEntity> type, World world) {
         super(type, world);
-        this.noClip = true;
+        this.noClip = false;
         this.setNoGravity(true);
         this.setSilent(false);
         this.setCanPickUpLoot(false);
@@ -128,7 +129,7 @@ public final class EchoEntity extends MobEntity {
             setVelocity(Vec3d.ZERO);
         }
         super.tick();
-        this.noClip = true;
+        this.noClip = false;
         this.setNoGravity(true);
         if (getWorld().isClient()) {
             return;
@@ -176,7 +177,9 @@ public final class EchoEntity extends MobEntity {
             setHeadYaw(headYaw);
         }
 
-        refreshPositionAndAngles(x, y, z, yaw, pitch);
+        if (!moveRecordedFrameSafely(new Vec3d(x, y, z), yaw, pitch)) {
+            return false;
+        }
         bodyYaw = yaw;
         setHeldItemVisual(frame.heldItemVisual());
         applyRecordedPose(frame);
@@ -210,7 +213,9 @@ public final class EchoEntity extends MobEntity {
         float yaw = MathHelper.lerpAngleDegrees(delta, frame.bodyYaw(), next.bodyYaw());
         float headYaw = MathHelper.lerpAngleDegrees(delta, frame.headYaw(), next.headYaw());
         float pitch = MathHelper.lerp(delta, frame.pitch(), next.pitch());
-        refreshPositionAndAngles(pos.x, pos.y, pos.z, yaw, pitch);
+        if (!moveRecordedFrameSafely(pos, yaw, pitch)) {
+            return false;
+        }
         bodyYaw = yaw;
         setHeadYaw(headYaw);
         setHeldItemVisual(frame.heldItemVisual());
@@ -229,6 +234,31 @@ public final class EchoEntity extends MobEntity {
         setHeadYaw(frame.headYaw());
         setHeldItemVisual(frame.heldItemVisual());
         applyRecordedPose(frame);
+    }
+
+    public boolean applyLiveFrame(RecordedFrame frame) {
+        if (!moveRecordedFrameSafely(frame.pos(), frame.bodyYaw(), frame.pitch())) {
+            return false;
+        }
+        bodyYaw = frame.bodyYaw();
+        setHeadYaw(frame.headYaw());
+        setHeldItemVisual(frame.heldItemVisual());
+        applyRecordedPose(frame);
+        return true;
+    }
+
+    private boolean moveRecordedFrameSafely(Vec3d destination, float yaw, float pitch) {
+        if (!(getWorld() instanceof ServerWorld world)) {
+            return false;
+        }
+        Vec3d movement = destination.subtract(getPos());
+        if (!ReplayPathSafety.isSegmentClear(getBoundingBox(), movement,
+                candidate -> world.isSpaceEmpty(this, candidate))) {
+            setReplayOpacity(0.0F);
+            return false;
+        }
+        refreshPositionAndAngles(destination.x, destination.y, destination.z, yaw, pitch);
+        return true;
     }
 
     private void applyRecordedPose(RecordedFrame frame) {
@@ -290,7 +320,12 @@ public final class EchoEntity extends MobEntity {
             return false;
         }
         float yaw = (float) (MathHelper.atan2(step.z, step.x) * 57.2957763671875D) - 90.0F;
-        refreshPositionAndAngles(destination.x, destination.y, destination.z, yaw, getPitch());
+        Vec3d before = getPos();
+        move(MovementType.SELF, step);
+        if (getPos().squaredDistanceTo(before) < 1.0E-8D) {
+            return false;
+        }
+        setYaw(yaw);
         bodyYaw = yaw;
         setHeadYaw(yaw);
         return true;

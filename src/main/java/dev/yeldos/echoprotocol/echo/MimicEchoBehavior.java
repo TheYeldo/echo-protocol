@@ -114,7 +114,10 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     }
 
     private void tickCopying(EchoEntity echo, ServerPlayerEntity target) {
-        applyDelayedFrame(echo, false);
+        if (!applyDelayedFrame(echo, false)) {
+            transition(EchoState.DISAPPEARING, echo);
+            return;
+        }
         successfulCopies++;
         if (successfulCopies == 80) {
             if (EchoVisibility.isLookingAt(target, echo, 0.55D)) {
@@ -131,7 +134,10 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
 
     private void tickDesynchronizing(EchoEntity echo, ServerPlayerEntity target) {
         boolean mistake = stateAge % 35 == 0 || ThreadLocalRandom.current().nextInt(50) == 0;
-        applyDelayedFrame(echo, mistake);
+        if (!applyDelayedFrame(echo, mistake)) {
+            transition(EchoState.DISAPPEARING, echo);
+            return;
+        }
         if (mistake) {
             independentMoves++;
             if (context.awardsProgress()) {
@@ -213,12 +219,14 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         }
     }
 
-    private void applyDelayedFrame(EchoEntity echo, boolean mistake) {
+    private boolean applyDelayedFrame(EchoEntity echo, boolean mistake) {
         RecordedFrame frame = delayedFrame();
         if (frame == null) {
-            return;
+            return false;
         }
-        echo.applyFrame(frame);
+        if (!echo.applyLiveFrame(frame)) {
+            return false;
+        }
         echo.setFadeOpacity(age, 20 * 30);
         if (mistake) {
             if (ThreadLocalRandom.current().nextBoolean()) {
@@ -228,6 +236,7 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
                 echo.lookAtTarget(0.3F);
             }
         }
+        return true;
     }
 
     private RecordedFrame delayedFrame() {
