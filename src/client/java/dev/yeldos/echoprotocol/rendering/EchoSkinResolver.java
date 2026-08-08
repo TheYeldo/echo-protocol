@@ -50,7 +50,10 @@ public final class EchoSkinResolver {
         if (textures == null) {
             textures = DefaultSkinHelper.getSkinTextures(uuid);
         }
-        if (EchoProtocol.config().skinCacheEnabled()) {
+        // The skin provider may initially return an insecure/default fallback
+        // while the real profile texture is loading. Never make that transient
+        // fallback permanent in Echo Protocol's own cache.
+        if (EchoProtocol.config().skinCacheEnabled() && textures.secure()) {
             CACHE.put(uuid, textures);
         }
         return textures;
