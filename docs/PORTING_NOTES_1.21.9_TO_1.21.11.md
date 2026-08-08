@@ -12,7 +12,7 @@
 
 The main source migration was the Yarn/API world-access rename from `Entity#getWorld()` to `Entity#getEntityWorld()`, together with `getPos()` to `getEntityPos()` at entity call sites. Game-profile accessors and client renderer types were updated for the current mappings.
 
-The Echo renderer continues using extracted `PlayerEntityRenderState` values. It was adapted to the modern ordered render-command queue, camera render state, player skin types, translucent entity layer, tint/alpha handling, and current player model-layer keys. Render state does not retain a mutable Echo entity reference. Classic/slim models, player skin, held items, movement poses, body/head rotation, fade and translucency were preserved.
+The Echo renderer continues using extracted `PlayerEntityRenderState` values. Final Prism regression testing found that the modern LivingEntity command path bypassed the former typed Echo alpha/layer override. A required client mixin now supplies Echo visibility, translucent layer, alpha mix color, and visual offsets at the actual command path; it uses the normal required injection policy and no `require=0`. Resolved `SkinTextures` are copied into the player render state and model selection happens during extraction, so classic/slim selection and asynchronous custom skins reach the renderer. Render state does not retain a mutable Echo entity reference.
 
 The stable built-in string tracked-data codec remains in use for target and skin UUIDs. UUID strings are validated before use. No custom physical-side-dependent tracked-data handler was reintroduced.
 
