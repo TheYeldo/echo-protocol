@@ -6,7 +6,6 @@ import dev.yeldos.echoprotocol.echo.EchoType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
 import net.minecraft.client.render.entity.BipedEntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.render.entity.model.BipedEntityModel;
@@ -14,7 +13,6 @@ import net.minecraft.client.render.entity.model.EntityModelLayer;
 import net.minecraft.client.render.entity.model.EntityModelLayers;
 import net.minecraft.client.render.entity.model.PlayerEntityModel;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
-import net.minecraft.client.render.state.CameraRenderState;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerSkinType;
 import net.minecraft.entity.player.SkinTextures;
@@ -47,7 +45,9 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         EchoRenderState echoState = (EchoRenderState) state;
         SkinTextures textures = EchoSkinResolver.resolve(entity);
         echoState.texture = textures.body().texturePath();
+        state.skinTextures = textures;
         echoState.slim = textures.model() == PlayerSkinType.SLIM;
+        this.model = echoState.slim ? slimModel : classicModel;
         echoState.opacity = entity.getReplayOpacity();
         MinecraftClient client = MinecraftClient.getInstance();
         echoState.visible = client.player != null && entity.visibleTo(client.player.getUuid());
@@ -74,32 +74,8 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
     }
 
     @Override
-    public void render(PlayerEntityRenderState state, MatrixStack matrices,
-                       OrderedRenderCommandQueue commandQueue, CameraRenderState cameraState) {
-        EchoRenderState echoState = (EchoRenderState) state;
-        if (!echoState.visible || echoState.opacity <= 0.01F) {
-            return;
-        }
-        this.model = echoState.slim ? slimModel : classicModel;
-        matrices.push();
-        applyTypeVisualOffset(echoState, matrices);
-        super.render(state, matrices, commandQueue, cameraState);
-        matrices.pop();
-    }
-
-    private void applyTypeVisualOffset(EchoRenderState state, MatrixStack matrices) {
-        if (state.echoType == EchoType.CORRUPTED && state.echoState != EchoState.REPLAYING) {
-            float wobble = (float) Math.sin(state.age * 0.45F) * 0.012F;
-            matrices.translate(wobble, 0.0F, -wobble);
-        } else if (state.echoType == EchoType.MIMIC && state.echoState == EchoState.THREATENING) {
-            float pulse = 1.0F + (float) Math.sin(state.age * 0.25F) * 0.012F;
-            matrices.scale(pulse, pulse, pulse);
-        }
-    }
-
-    @Override
     protected int getMixColor(PlayerEntityRenderState state) {
-        return ColorHelper.getWhite(((EchoRenderState) state).opacity);
+        return mixColor(state);
     }
 
     @Override
@@ -115,7 +91,31 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
     @Override
     protected RenderLayer getRenderLayer(PlayerEntityRenderState state, boolean showBody,
                                          boolean translucent, boolean showOutline) {
-        return RenderLayers.entityTranslucent(getTexture(state));
+        return renderLayer(state);
+    }
+
+    public static boolean shouldRender(PlayerEntityRenderState state) {
+        EchoRenderState echoState = (EchoRenderState) state;
+        return echoState.visible && echoState.opacity > 0.01F;
+    }
+
+    public static int mixColor(PlayerEntityRenderState state) {
+        return ColorHelper.getWhite(((EchoRenderState) state).opacity);
+    }
+
+    public static RenderLayer renderLayer(PlayerEntityRenderState state) {
+        return RenderLayers.entityTranslucent(((EchoRenderState) state).texture);
+    }
+
+    public static void applyVisualOffset(PlayerEntityRenderState state, MatrixStack matrices) {
+        EchoRenderState echoState = (EchoRenderState) state;
+        if (echoState.echoType == EchoType.CORRUPTED && echoState.echoState != EchoState.REPLAYING) {
+            float wobble = (float) Math.sin(echoState.age * 0.45F) * 0.012F;
+            matrices.translate(wobble, 0.0F, -wobble);
+        } else if (echoState.echoType == EchoType.MIMIC && echoState.echoState == EchoState.THREATENING) {
+            float pulse = 1.0F + (float) Math.sin(echoState.age * 0.25F) * 0.012F;
+            matrices.scale(pulse, pulse, pulse);
+        }
     }
 
     private static final class EchoRenderState extends PlayerEntityRenderState {
