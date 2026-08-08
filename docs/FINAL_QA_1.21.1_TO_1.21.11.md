@@ -8,7 +8,7 @@ Status words mean `VERIFIED`, `PARTIALLY VERIFIED`, `NOT TESTED`, or `FAILED`. F
 
 | Minecraft | Branch / verified code commit | Prism instance | Yarn | Loader / API | Loom / Gradle / Java | Artifact SHA-256 | Tests / build | Server / Prism | Skin / model | Alpha / fade / collision | Gameplay / advancement | Restart | Privacy | Perf/log | Upload |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1.21.1 | fix/1.21.1-beta.2-runtime `cd467b64` | EchoProtocol-Test-1.21.1 | 1.21.1+build.3 | 0.16.14 / 0.116.13 | 1.17.14 / 9.6.1 / 21 | `0910c7ddf8ea1036f26f5959b9c4a85f824f6ef0dc7333310513001d6882c80b` | VERIFIED 52 / VERIFIED | VERIFIED / VERIFIED | VERIFIED / PARTIALLY VERIFIED | VERIFIED / VERIFIED / VERIFIED | VERIFIED / VERIFIED | VERIFIED | PARTIALLY VERIFIED | VERIFIED | VERIFIED |
+| 1.21.1 | fix/1.21.1-beta.2-runtime (runtime-fix + exact-metadata commits) | EchoProtocol-Test-1.21.1 | 1.21.1+build.3 | 0.16.14 / 0.116.13 | 1.17.14 / 9.6.1 / 21 | `f76994f30ca71c644a23fe386ba022a4475d44956dd94feab71ee89c26d5bbed` | VERIFIED 52 / VERIFIED | VERIFIED / VERIFIED | VERIFIED / PARTIALLY VERIFIED | VERIFIED / VERIFIED / VERIFIED | VERIFIED / VERIFIED | VERIFIED | PARTIALLY VERIFIED | VERIFIED | VERIFIED |
 | 1.21.2 | port/1.21.2-1.21.3 `35b4b29f` | EchoProtocol-Test-1.21.2 | 1.21.2+build.1 | 0.16.14 / 0.106.1 | 1.17.14 / 9.6.1 / 21 | `9c531004a702449dc682dbecc6916d3bdef46dad680579edbef7fe7e23cc4022` | VERIFIED 52 / VERIFIED | VERIFIED / VERIFIED | VERIFIED / PARTIALLY VERIFIED | VERIFIED / VERIFIED / VERIFIED | VERIFIED / VERIFIED | PARTIALLY VERIFIED | PARTIALLY VERIFIED | VERIFIED | VERIFIED |
 | 1.21.3 | port/1.21.2-1.21.3 `35b4b29f` | EchoProtocol-Test-1.21.3 | 1.21.2+build.1 | 0.16.14 / 0.114.1 | 1.17.14 / 9.6.1 / 21 | `9c531004a702449dc682dbecc6916d3bdef46dad680579edbef7fe7e23cc4022` | VERIFIED 52 / VERIFIED | VERIFIED / VERIFIED | VERIFIED / PARTIALLY VERIFIED | VERIFIED / VERIFIED / VERIFIED | VERIFIED / VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED |
 | 1.21.4 | port/1.21.4 `8279225f` | EchoProtocol-Test-1.21.4 | 1.21.4+build.8 | 0.16.14 / 0.119.4 | 1.17.14 / 9.6.1 / 21 | `b653e5bc7c62197953402dbb836ece1a3c36808922362cd7fdd29de5cb025373` | VERIFIED 52 / VERIFIED | VERIFIED / VERIFIED | VERIFIED / PARTIALLY VERIFIED | VERIFIED / VERIFIED / VERIFIED | VERIFIED / VERIFIED | PARTIALLY VERIFIED | PARTIALLY VERIFIED | VERIFIED | VERIFIED |
@@ -34,6 +34,8 @@ The shared JAR claims are valid: one byte-identical file was used in Prism and s
 | Advancement with no visible manifestation | Root cause CONFIRMED; user-visible report not independently reproduced after fix | Original 1.21.1 logic and all ports | Stage 3 transition granted `the_original` before The Original actually manifested. | Stage transition no longer grants it. The Original grants only after successful observation/manifestation. Stage-set smoke testing confirmed no premature grant; actual Original events still grant at the semantic point. |
 
 No P0 crash, disconnect, privacy leak, or persistence corruption remained. No new P1 defect remained after final-JAR retesting.
+
+The original 1.21.1 metadata used the wider selector `~1.21.1`. Final packaging changed it to exact `1.21.1`, then reran 52 tests, clean build, dedicated-server startup, and authenticated Prism skin/transparency smoke testing on the new SHA shown above.
 
 ## Runtime evidence
 
