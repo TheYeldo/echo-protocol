@@ -5,6 +5,9 @@
   "mixins": [
     "ServerEntityTrackingMixin"
   ],
+  "client": [
+    "LivingEntityRendererMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
