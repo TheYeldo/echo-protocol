@@ -45,7 +45,6 @@ public final class StageManager {
             if (canUnlockStageThree(state, config)) {
                 state.setStage(EchoStage.THE_ORIGINAL);
                 state.setNextOriginalEventTick(tick + (long) config.originalFirstEventDelayMinutes() * 60L * 20L);
-                grant(player, "the_original");
             }
         }
     }
