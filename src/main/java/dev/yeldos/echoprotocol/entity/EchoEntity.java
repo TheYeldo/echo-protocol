@@ -60,6 +60,12 @@ public final class EchoEntity extends MobEntity {
     private boolean replayMainHandSwing;
     private boolean replayOffHandSwing;
     private boolean worldInteractionsReady;
+    private boolean telemetryEnabled;
+    private Vec3d telemetryPreviousPosition = Vec3d.ZERO;
+    private int telemetryMovingTicks;
+    private int telemetryIdleTicks;
+    private int telemetryRejectedReplaySegments;
+    private double telemetryDistanceTraveled;
     private final EchoWorldInteraction worldInteraction = new EchoWorldInteraction();
 
     public EchoEntity(EntityType<? extends MobEntity> type, World world) {
@@ -115,12 +121,18 @@ public final class EchoEntity extends MobEntity {
             case ORIGINAL -> config.originalNearFullOpacity();
         };
         this.dataTracker.set(OPACITY, 0.0F);
+        telemetryEnabled = config.debugLogging();
         if (!frames.isEmpty()) {
             RecordedFrame first = frames.get(0);
             this.applyFrame(first);
             replayMainHandSwing = false;
             replayOffHandSwing = false;
         }
+        telemetryPreviousPosition = getEntityPos();
+        telemetryMovingTicks = 0;
+        telemetryIdleTicks = 0;
+        telemetryRejectedReplaySegments = 0;
+        telemetryDistanceTraveled = 0.0D;
         behavior.onStarted(this);
     }
 
@@ -145,6 +157,16 @@ public final class EchoEntity extends MobEntity {
         }
         worldInteractionsReady = true;
         behavior.tick(this);
+        if (!isRemoved() && telemetryEnabled) {
+            double distance = getEntityPos().distanceTo(telemetryPreviousPosition);
+            telemetryDistanceTraveled += distance;
+            if (distance > 1.0E-3D) {
+                telemetryMovingTicks++;
+            } else {
+                telemetryIdleTicks++;
+            }
+            telemetryPreviousPosition = getEntityPos();
+        }
         if (!isRemoved()) {
             worldInteraction.tick(this);
         }
@@ -238,7 +260,11 @@ public final class EchoEntity extends MobEntity {
     }
 
     public boolean applyLiveFrame(RecordedFrame frame) {
-        if (!moveRecordedFrameSafely(frame.pos(), frame.bodyYaw(), frame.pitch())) {
+        return applyLiveFrame(frame, frame.pos());
+    }
+
+    public boolean applyLiveFrame(RecordedFrame frame, Vec3d destination) {
+        if (!moveRecordedFrameSafely(destination, frame.bodyYaw(), frame.pitch())) {
             return false;
         }
         bodyYaw = frame.bodyYaw();
@@ -255,6 +281,7 @@ public final class EchoEntity extends MobEntity {
         Vec3d movement = destination.subtract(getEntityPos());
         if (!ReplayPathSafety.isSegmentClear(getBoundingBox(), movement,
                 candidate -> world.isSpaceEmpty(this, candidate))) {
+            telemetryRejectedReplaySegments++;
             setReplayOpacity(0.0F);
             return false;
         }
@@ -424,10 +451,17 @@ public final class EchoEntity extends MobEntity {
 
     public void finishAndDiscard() {
         worldInteraction.clear(this);
-        if (context != null && context.config().debugLogging()) {
+        if (telemetryEnabled && context != null) {
             dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
                     "[director] entity cleaned for {} id={} type={} state={} age={} pos={}",
                     context.targetUuid(), getId(), echoType(), echoState(), age, getEntityPos());
+            dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
+                    "[director] manifestation metrics id={} type={} frames={} plannedDistance={} actualDistance={} "
+                            + "movingTicks={} idleTicks={} rejectedSegments={} heldItem={}",
+                    getId(), echoType(), replay.size(), String.format(java.util.Locale.ROOT, "%.2f", replayDistance()),
+                    String.format(java.util.Locale.ROOT, "%.2f", telemetryDistanceTraveled),
+                    telemetryMovingTicks, telemetryIdleTicks, telemetryRejectedReplaySegments,
+                    getHeldItemVisual().isEmpty() ? "empty" : getHeldItemVisual().getItem().toString());
         }
         ServerPlayerEntity target = getTargetPlayer();
         if (!eventFinished && target != null && context != null && context.awardsProgress()
@@ -466,6 +500,14 @@ public final class EchoEntity extends MobEntity {
 
     public List<RecordedFrame> replayFrames() {
         return List.copyOf(replay);
+    }
+
+    private double replayDistance() {
+        double distance = 0.0D;
+        for (int index = 1; index < replay.size(); index++) {
+            distance += replay.get(index - 1).pos().distanceTo(replay.get(index).pos());
+        }
+        return distance;
     }
 
     public RecordedFrame frameAt(int index) {

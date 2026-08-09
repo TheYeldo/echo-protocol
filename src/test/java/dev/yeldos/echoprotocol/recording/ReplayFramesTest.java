@@ -18,4 +18,14 @@ class ReplayFramesTest {
         assertEquals(new Vec3d(2.0D, 70.0D, 3.0D), translated.getFirst().pos());
         assertEquals(second.pos().subtract(first.pos()), translated.getLast().pos().subtract(translated.getFirst().pos()));
     }
+
+    @Test
+    void liveMimicMotionIsRelativeToItsManifestationInsteadOfTeleportingOntoThePlayer() {
+        net.minecraft.util.math.Vec3d playerOrigin = new net.minecraft.util.math.Vec3d(100.0D, 64.0D, 100.0D);
+        net.minecraft.util.math.Vec3d mimicOrigin = new net.minecraft.util.math.Vec3d(92.0D, 64.0D, 96.0D);
+        net.minecraft.util.math.Vec3d laterPlayer = new net.minecraft.util.math.Vec3d(102.0D, 64.0D, 99.0D);
+
+        assertEquals(new net.minecraft.util.math.Vec3d(94.0D, 64.0D, 95.0D),
+                ReplayFrames.relativePosition(laterPlayer, playerOrigin, mimicOrigin));
+    }
 }

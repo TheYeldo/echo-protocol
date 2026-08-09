@@ -4,6 +4,7 @@ import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.panic.PanicImprint;
 import dev.yeldos.echoprotocol.recording.PlayerRecording;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
+import dev.yeldos.echoprotocol.recording.ReplaySegmentSelector;
 import dev.yeldos.echoprotocol.stage.FamiliarLocation;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
@@ -52,9 +53,10 @@ public final class FalseMemoryDirector {
                 - config.falseMemoryMinimumRealPrefixSeconds()) * accuracy);
         int wantedFrames = Math.min(source.size(), Math.max(minimumFrames,
                 prefixSeconds * 20 / config.recordingSampleIntervalTicks()));
-        int maximumStart = source.size() - wantedFrames;
-        int start = maximumStart <= 0 ? 0 : random.nextInt(maximumStart + 1);
-        List<RecordedFrame> authentic = new ArrayList<>(source.subList(start, start + wantedFrames));
+        List<RecordedFrame> authentic = ReplaySegmentSelector.select(source, wantedFrames, wantedFrames, random);
+        if (authentic.isEmpty()) {
+            return Optional.empty();
+        }
 
         Optional<Vec3d> spawn = SafeEchoPositionFinder.findSpawn(target.getEntityWorld(), target,
                 authentic.get(0).pos(), config);

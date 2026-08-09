@@ -211,8 +211,11 @@ public final class EchoEventDirector {
         int maxFrames = Math.max(minFrames, config.maximumReplaySeconds() * 20 / config.recordingSampleIntervalTicks());
         List<RecordedFrame> segment = recording.randomSegment(minFrames, maxFrames);
         if (segment.isEmpty()) {
+            debug(config, "replay selection rejected for {} type={}: recordingFrames={} required={}",
+                    target.getUuid(), type, recording.size(), minFrames);
             return false;
         }
+        debugReplaySegment(config, target, type, segment);
         List<RecordedFrame> frames = type == EchoType.CORRUPTED ? corruptSegment(segment) : segment;
         RecordedFrame start = frames.getFirst();
         ServerWorld world = target.getEntityWorld();
@@ -1560,7 +1563,19 @@ public final class EchoEventDirector {
 
     private void cleanupActiveEchoes() {
         activeEchoes.entrySet().removeIf(entry -> {
-            entry.getValue().removeIf(EchoEntity::isRemoved);
+            entry.getValue().removeIf(echo -> {
+                boolean trackedInWorld = echo.getEntityWorld() instanceof ServerWorld world
+                        && world.getEntityById(echo.getId()) == echo;
+                if (EventDirectorPolicy.retainActiveEcho(echo.isRemoved(), trackedInWorld)) {
+                    return false;
+                }
+                if (!echo.isRemoved()) {
+                    debug(EchoProtocol.config(), "orphaned/unloaded entity id={} type={} detected; cleaning event lock",
+                            echo.getId(), echo.echoType());
+                    echo.finishAndDiscard();
+                }
+                return true;
+            });
             if (entry.getValue().isEmpty()) {
                 stageManager.state(entry.getKey()).setActiveEvent(false);
                 return true;
@@ -1620,6 +1635,36 @@ public final class EchoEventDirector {
         if (config.debugLogging()) {
             EchoProtocol.LOGGER.info("[director] " + message, arguments);
         }
+    }
+
+    private static void debugReplaySegment(EchoConfig config, ServerPlayerEntity target, EchoType type,
+                                           List<RecordedFrame> frames) {
+        if (!config.debugLogging() || frames.isEmpty()) {
+            return;
+        }
+        double distance = 0.0D;
+        int movingFrames = 0;
+        int groundedFrames = 0;
+        for (int index = 0; index < frames.size(); index++) {
+            RecordedFrame frame = frames.get(index);
+            if (frame.walking()) {
+                movingFrames++;
+            }
+            if (frame.onGround()) {
+                groundedFrames++;
+            }
+            if (index > 0) {
+                distance += frames.get(index - 1).pos().distanceTo(frame.pos());
+            }
+        }
+        RecordedFrame first = frames.getFirst();
+        EchoProtocol.LOGGER.info(
+                "[director] replay source player={} type={} frames={} movingFrames={} groundedFrames={} distance={} "
+                        + "startPitch={} startYaw={} heldItem={} ticks={}..{}",
+                target.getUuid(), type, frames.size(), movingFrames, groundedFrames,
+                String.format(java.util.Locale.ROOT, "%.2f", distance), first.pitch(), first.bodyYaw(),
+                first.heldItemVisual().isEmpty() ? "empty" : first.heldItemVisual().getItem().toString(),
+                first.serverTick(), frames.getLast().serverTick());
     }
 
     public void clear() {

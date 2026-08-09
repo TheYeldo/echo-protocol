@@ -163,6 +163,11 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
     }
 
     private void transition(EchoState next, EchoEntity echo) {
+        if (context.config().debugLogging()) {
+            dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
+                    "[director] Corrupted id={} state {} -> {} at behaviorAge={} stateAge={}",
+                    echo.getId(), state, next, age, stateAge);
+        }
         state = next;
         stateAge = 0;
         echo.setEchoState(next);
