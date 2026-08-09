@@ -119,6 +119,12 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
             plan = OriginalActionPlanFactory.create(eventKind, movementTest, world, echo, target, anchor,
                     knownLocations, context.config());
             initialized = true;
+            if (context.config().debugLogging()) {
+                dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
+                        "[director] Original id={} event={} movementMode={} spawn={} anchor={} plan={}", echo.getId(),
+                        eventKind, movementTest == null ? "natural" : movementTest, echo.getEntityPos(), anchor,
+                        plan.segments());
+            }
             beginSegment(echo);
         }
         age++;
