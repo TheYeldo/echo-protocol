@@ -55,16 +55,7 @@ public final class PlayerRecording {
     }
 
     public List<RecordedFrame> randomSegment(int minFrames, int maxFrames) {
-        if (size < minFrames) {
-            return List.of();
-        }
-        int length = Math.min(size, ThreadLocalRandom.current().nextInt(minFrames, Math.max(minFrames, maxFrames) + 1));
-        int offset = ThreadLocalRandom.current().nextInt(0, size - length + 1);
-        List<RecordedFrame> result = new ArrayList<>(length);
-        for (int i = 0; i < length; i++) {
-            result.add(frames[(start + offset + i) % frames.length]);
-        }
-        return result;
+        return ReplaySegmentSelector.select(frames(), minFrames, maxFrames, ThreadLocalRandom.current());
     }
 
     public List<RecordedFrame> frames() {

@@ -36,4 +36,8 @@ public final class EventDirectorPolicy {
     public static int failedAttemptRetrySeconds(int minimumEventIntervalSeconds) {
         return Math.max(15, Math.min(60, Math.max(1, minimumEventIntervalSeconds) / 4));
     }
+
+    public static boolean retainActiveEcho(boolean removed, boolean trackedInWorld) {
+        return !removed && trackedInWorld;
+    }
 }
