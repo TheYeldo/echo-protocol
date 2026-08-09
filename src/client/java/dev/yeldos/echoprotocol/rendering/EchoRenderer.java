@@ -4,6 +4,7 @@ import dev.yeldos.echoprotocol.entity.EchoEntity;
 import dev.yeldos.echoprotocol.echo.EchoState;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -45,7 +46,6 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         echoState.visible = client.player != null && entity.visibleTo(client.player.getUuid());
         echoState.echoType = entity.echoType();
         echoState.echoState = entity.echoState();
-
         state.spectator = false;
         state.invisible = true;
         state.invisibleToPlayer = false;
@@ -82,7 +82,9 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         this.model = echoState.slim ? slimModel : classicModel;
         matrices.push();
         applyTypeVisualOffset(echoState, matrices);
-        super.render(state, matrices, lightAware(vertexConsumers, echoState.opacity), light);
+        // Retain a small light floor for low-light readability while preserving normal depth testing.
+        super.render(state, matrices, lightAware(vertexConsumers, echoState.opacity),
+                LightmapTextureManager.applyEmission(light, 5));
         matrices.pop();
     }
 
@@ -149,7 +151,8 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
 
         @Override
         public VertexConsumer color(int red, int green, int blue, int alpha) {
-            delegate.color(red, green, blue, Math.round(alpha * this.alpha));
+            delegate.color(Math.round(red * (196.0F / 255.0F)), Math.round(green * (224.0F / 255.0F)),
+                    blue, Math.round(alpha * this.alpha));
             return this;
         }
 

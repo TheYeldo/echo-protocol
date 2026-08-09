@@ -2,6 +2,7 @@ package dev.yeldos.echoprotocol.echo;
 
 import dev.yeldos.echoprotocol.entity.EchoEntity;
 import dev.yeldos.echoprotocol.recording.RecordedFrame;
+import dev.yeldos.echoprotocol.recording.ReplayFrames;
 import dev.yeldos.echoprotocol.rendering.EchoVisualEffects;
 import dev.yeldos.echoprotocol.sound.EchoSoundPlayer;
 import dev.yeldos.echoprotocol.util.EchoVisibility;
@@ -33,6 +34,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     private int lastHitAge = -200;
     private boolean forcedHostile;
     private RecordedFrame previousCapture;
+    private Vec3d mimicOrigin;
+    private Vec3d targetOrigin;
 
     public MimicEchoBehavior(EchoEventContext context) {
         this.context = context;
@@ -74,6 +77,10 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         if (target == null) {
             echo.finishAndDiscard();
             return;
+        }
+        if (mimicOrigin == null) {
+            mimicOrigin = echo.getEntityPos();
+            targetOrigin = target.getEntityPos();
         }
         capture(target);
         echo.setEchoState(state);
@@ -223,7 +230,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         if (frame == null) {
             return false;
         }
-        if (!echo.applyLiveFrame(frame)) {
+        Vec3d relativeDestination = ReplayFrames.relativePosition(frame.pos(), targetOrigin, mimicOrigin);
+        if (!echo.applyLiveFrame(frame, relativeDestination)) {
             return false;
         }
         echo.setFadeOpacity(age, 20 * 30);
@@ -270,6 +278,11 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     }
 
     private void transition(EchoState next, EchoEntity echo) {
+        if (context.config().debugLogging()) {
+            dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
+                    "[director] Mimic id={} state {} -> {} at behaviorAge={} stateAge={} queue={} copies={}",
+                    echo.getId(), state, next, age, stateAge, delayedFrames.size(), successfulCopies);
+        }
         state = next;
         stateAge = 0;
         echo.setEchoState(next);
