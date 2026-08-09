@@ -4,6 +4,7 @@ import dev.yeldos.echoprotocol.entity.EchoEntity;
 import dev.yeldos.echoprotocol.echo.EchoState;
 import dev.yeldos.echoprotocol.echo.EchoType;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.entity.BipedEntityRenderer;
@@ -53,6 +54,10 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         echoState.visible = client.player != null && entity.visibleTo(client.player.getUuid());
         echoState.echoType = entity.echoType();
         echoState.echoState = entity.echoState();
+        // A restrained cold cast recalls the original apparition texture while preserving the target skin.
+        // Low emission improves cave/night readability but keeps normal depth testing and cannot reveal Echoes
+        // through walls.
+        state.light = LightmapTextureManager.applyEmission(state.light, 5);
 
         state.spectator = false;
         state.invisible = true;
@@ -102,7 +107,7 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
     }
 
     public static int mixColor(PlayerEntityRenderState state) {
-        return ColorHelper.getWhite(((EchoRenderState) state).opacity);
+        return ColorHelper.getArgb(ColorHelper.toAlpha(((EchoRenderState) state).opacity), 196, 224, 255);
     }
 
     public static RenderLayer renderLayer(PlayerEntityRenderState state) {

@@ -7,6 +7,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
@@ -34,16 +35,17 @@ public final class OriginalRoutePlanner {
     public static Optional<List<Vec3d>> plan(ServerWorld world, EchoEntity echo, Vec3d requestedTarget,
                                              int maximumWaypoints) {
         BlockPos start = BlockPos.ofFloored(echo.getEntityPos());
-        Optional<BlockPos> resolved = resolveTarget(world, echo, requestedTarget);
+        Optional<Vec3d> resolved = resolveTarget(world, echo, requestedTarget);
         if (resolved.isEmpty()) {
             return Optional.empty();
         }
-        BlockPos goal = resolved.get();
+        Vec3d goalPosition = resolved.get();
+        BlockPos goal = BlockPos.ofFloored(goalPosition);
         if (start.getSquaredDistance(goal) > MAXIMUM_LOCAL_RADIUS * MAXIMUM_LOCAL_RADIUS) {
             return Optional.empty();
         }
-        if (safeSegment(world, echo, echo.getEntityPos(), Vec3d.ofBottomCenter(goal))) {
-            return Optional.of(List.of(Vec3d.ofBottomCenter(goal)));
+        if (safeSegment(world, echo, echo.getEntityPos(), goalPosition)) {
+            return Optional.of(List.of(goalPosition));
         }
 
         PriorityQueue<Node> open = new PriorityQueue<>(Comparator.comparingDouble(Node::score));
@@ -81,7 +83,7 @@ public final class OriginalRoutePlanner {
         if (reached == null) {
             return Optional.empty();
         }
-        List<Vec3d> raw = reconstruct(cameFrom, immutableStart, reached);
+        List<Vec3d> raw = reconstruct(world, echo, cameFrom, immutableStart, reached);
         List<Vec3d> compressed = compress(world, echo, echo.getEntityPos(), raw, Math.max(1, maximumWaypoints));
         return compressed.isEmpty() ? Optional.empty() : Optional.of(compressed);
     }
@@ -97,11 +99,11 @@ public final class OriginalRoutePlanner {
                 double angle = i * Math.PI * 2.0D / 16.0D;
                 Vec3d candidate = groundCandidate(center.add(Math.cos(angle) * distance, 0.0D,
                         Math.sin(angle) * distance));
-                Optional<BlockPos> standing = resolveTarget(world, echo, candidate);
+                Optional<Vec3d> standing = resolveTarget(world, echo, candidate);
                 if (standing.isEmpty()) {
                     continue;
                 }
-                Vec3d resolved = Vec3d.ofBottomCenter(standing.get());
+                Vec3d resolved = standing.get();
                 double score = Math.abs(horizontalDistance(resolved, center) - minimumDistance)
                         + horizontalDistance(resolved, echo.getEntityPos()) * 0.02D;
                 if (score < bestScore) {
@@ -124,11 +126,11 @@ public final class OriginalRoutePlanner {
                 double angle = i * Math.PI * 2.0D / 16.0D;
                 Vec3d candidate = groundCandidate(center.add(Math.cos(angle) * distance, 0.0D,
                         Math.sin(angle) * distance));
-                Optional<BlockPos> standing = resolveTarget(world, echo, candidate);
+                Optional<Vec3d> standing = resolveTarget(world, echo, candidate);
                 if (standing.isEmpty()) {
                     continue;
                 }
-                Vec3d resolved = Vec3d.ofBottomCenter(standing.get());
+                Vec3d resolved = standing.get();
                 if (horizontalDistance(resolved, echo.getEntityPos()) < 0.8D) {
                     continue;
                 }
@@ -147,7 +149,7 @@ public final class OriginalRoutePlanner {
         return safeTransit(world, echo, to) && safeSegment(world, echo, from, to);
     }
 
-    private static Optional<BlockPos> resolveTarget(ServerWorld world, EchoEntity echo, Vec3d requested) {
+    private static Optional<Vec3d> resolveTarget(ServerWorld world, EchoEntity echo, Vec3d requested) {
         BlockPos center = BlockPos.ofFloored(requested);
         for (int horizontalRadius = 0; horizontalRadius <= 2; horizontalRadius++) {
             for (int y = 1; y >= -1; y--) {
@@ -157,8 +159,9 @@ public final class OriginalRoutePlanner {
                             continue;
                         }
                         BlockPos candidate = center.add(x, y, z);
-                        if (safeStanding(world, echo, Vec3d.ofBottomCenter(candidate))) {
-                            return Optional.of(candidate.toImmutable());
+                        Optional<Vec3d> standing = standingPosition(world, echo, candidate);
+                        if (standing.isPresent()) {
+                            return standing;
                         }
                     }
                 }
@@ -169,20 +172,53 @@ public final class OriginalRoutePlanner {
 
     private static List<BlockPos> neighbors(ServerWorld world, EchoEntity echo, BlockPos current, BlockPos start) {
         List<BlockPos> result = new ArrayList<>(8);
+        Optional<Vec3d> currentPosition = standingPosition(world, echo, current);
+        if (currentPosition.isEmpty()) {
+            return result;
+        }
         for (int[] direction : DIRECTIONS) {
             for (int yOffset : new int[]{0, 1, -1}) {
-                BlockPos next = current.add(direction[0], yOffset, direction[1]);
-                if (horizontalSquared(next, start) > MAXIMUM_LOCAL_RADIUS * MAXIMUM_LOCAL_RADIUS
-                        || !safeStanding(world, echo, Vec3d.ofBottomCenter(next))) {
+                Optional<Vec3d> resolved = standingPosition(world, echo,
+                        current.add(direction[0], yOffset, direction[1]));
+                if (resolved.isEmpty()) {
                     continue;
                 }
-                if (safeSegment(world, echo, Vec3d.ofBottomCenter(current), Vec3d.ofBottomCenter(next))) {
+                BlockPos next = BlockPos.ofFloored(resolved.get()).toImmutable();
+                if (horizontalSquared(next, start) > MAXIMUM_LOCAL_RADIUS * MAXIMUM_LOCAL_RADIUS
+                        || next.equals(current)) {
+                    continue;
+                }
+                if (safeSegment(world, echo, currentPosition.get(), resolved.get())) {
                     result.add(next.toImmutable());
                     break;
                 }
             }
         }
         return result;
+    }
+
+    private static Optional<Vec3d> standingPosition(ServerWorld world, EchoEntity echo, BlockPos candidate) {
+        double x = candidate.getX() + 0.5D;
+        double z = candidate.getZ() + 0.5D;
+        for (int offset = 0; offset >= -2; offset--) {
+            BlockPos support = new BlockPos(candidate.getX(), candidate.getY() + offset, candidate.getZ());
+            if (!world.isChunkLoaded(support)) {
+                continue;
+            }
+            var shape = world.getBlockState(support).getCollisionShape(world, support);
+            if (shape.isEmpty()) {
+                continue;
+            }
+            double top = shape.getEndingCoord(Direction.Axis.Y, 0.5D, 0.5D);
+            if (!Double.isFinite(top)) {
+                continue;
+            }
+            Vec3d position = new Vec3d(x, support.getY() + top, z);
+            if (Math.abs(position.y - candidate.getY()) <= 1.05D && safeStanding(world, echo, position)) {
+                return Optional.of(position);
+            }
+        }
+        return Optional.empty();
     }
 
     private static boolean safeStanding(ServerWorld world, EchoEntity echo, Vec3d position) {
@@ -192,9 +228,16 @@ public final class OriginalRoutePlanner {
         }
         BlockState feetState = world.getBlockState(feet);
         BlockState headState = world.getBlockState(feet.up());
-        BlockState floorState = world.getBlockState(feet.down());
-        if (unsafe(feetState) || unsafe(headState) || unsafe(floorState)
-                || floorState.getCollisionShape(world, feet.down()).isEmpty()) {
+        BlockPos supportPos = BlockPos.ofFloored(position.x, position.y - 1.0E-4D, position.z);
+        BlockState supportState = world.getBlockState(supportPos);
+        var supportShape = supportState.getCollisionShape(world, supportPos);
+        if (unsafe(feetState) || unsafe(headState) || unsafe(supportState) || supportShape.isEmpty()) {
+            return false;
+        }
+        double supportTop = supportShape.getEndingCoord(Direction.Axis.Y,
+                position.x - Math.floor(position.x), position.z - Math.floor(position.z));
+        if (!Double.isFinite(supportTop)
+                || Math.abs(supportPos.getY() + supportTop - position.y) > 1.0E-3D) {
             return false;
         }
         Vec3d offset = position.subtract(echo.getEntityPos());
@@ -222,18 +265,37 @@ public final class OriginalRoutePlanner {
         }
         BlockState feetState = world.getBlockState(feet);
         BlockState headState = world.getBlockState(feet.up());
-        BlockState floor = world.getBlockState(feet.down());
-        BlockState lowerFloor = world.getBlockState(feet.down(2));
-        boolean supported = !floor.getCollisionShape(world, feet.down()).isEmpty()
-                || (!lowerFloor.getCollisionShape(world, feet.down(2)).isEmpty()
-                && position.y - feet.down(2).getY() <= 2.05D);
-        if (!supported || unsafe(feetState) || unsafe(headState) || unsafe(floor) || unsafe(lowerFloor)) {
+        if (!supportedAtOrBelow(world, position, 2.05D) || unsafe(feetState) || unsafe(headState)) {
             return false;
         }
         Vec3d offset = position.subtract(echo.getEntityPos());
         Box moved = echo.getBoundingBox().offset(offset);
         return world.isSpaceEmpty(echo, moved)
                 || EchoWorldInteraction.collisionContainsOnlyPassages(world, moved);
+    }
+
+    private static boolean supportedAtOrBelow(ServerWorld world, Vec3d position, double maximumDrop) {
+        BlockPos topCandidate = BlockPos.ofFloored(position.x, position.y - 1.0E-4D, position.z);
+        double localX = position.x - Math.floor(position.x);
+        double localZ = position.z - Math.floor(position.z);
+        for (int depth = 0; depth <= 2; depth++) {
+            BlockPos support = topCandidate.down(depth);
+            BlockState state = world.getBlockState(support);
+            if (unsafe(state)) {
+                return false;
+            }
+            var shape = state.getCollisionShape(world, support);
+            if (shape.isEmpty()) {
+                continue;
+            }
+            double top = shape.getEndingCoord(Direction.Axis.Y, localX, localZ);
+            if (!Double.isFinite(top)) {
+                continue;
+            }
+            double drop = position.y - (support.getY() + top);
+            return drop >= -1.0E-3D && drop <= maximumDrop;
+        }
+        return false;
     }
 
     private static boolean unsafe(BlockState state) {
@@ -244,11 +306,16 @@ public final class OriginalRoutePlanner {
                 || state.isOf(Blocks.SOUL_CAMPFIRE) || state.isOf(Blocks.SWEET_BERRY_BUSH);
     }
 
-    private static List<Vec3d> reconstruct(Map<BlockPos, BlockPos> cameFrom, BlockPos start, BlockPos reached) {
+    private static List<Vec3d> reconstruct(ServerWorld world, EchoEntity echo,
+                                           Map<BlockPos, BlockPos> cameFrom, BlockPos start, BlockPos reached) {
         LinkedList<Vec3d> path = new LinkedList<>();
         BlockPos cursor = reached;
         while (!cursor.equals(start)) {
-            path.addFirst(Vec3d.ofBottomCenter(cursor));
+            Optional<Vec3d> position = standingPosition(world, echo, cursor);
+            if (position.isEmpty()) {
+                return List.of();
+            }
+            path.addFirst(position.get());
             cursor = cameFrom.get(cursor);
             if (cursor == null) {
                 return List.of();

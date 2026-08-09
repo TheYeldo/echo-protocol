@@ -25,4 +25,8 @@ public final class ReplayFrames {
                         : frame.heldItemVisual().copyWithCount(Math.min(1, frame.heldItemVisual().getCount())),
                 frame.onGround())).toList();
     }
+
+    public static Vec3d relativePosition(Vec3d recordedPosition, Vec3d recordedOrigin, Vec3d manifestationOrigin) {
+        return manifestationOrigin.add(recordedPosition.subtract(recordedOrigin));
+    }
 }

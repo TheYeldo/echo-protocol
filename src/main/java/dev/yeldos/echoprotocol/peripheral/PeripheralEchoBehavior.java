@@ -16,6 +16,7 @@ public final class PeripheralEchoBehavior implements EchoBehaviorController {
     private static final int OBSERVATION_GRACE_TICKS = 8;
     private final EchoEventContext context;
     private final int durationTicks;
+    private final int maximumUnobservedTicks;
     private int age;
     private int directObservationTicks;
     private boolean reappeared;
@@ -23,6 +24,7 @@ public final class PeripheralEchoBehavior implements EchoBehaviorController {
     public PeripheralEchoBehavior(EchoEventContext context, int durationTicks) {
         this.context = context;
         this.durationTicks = Math.max(40, durationTicks);
+        this.maximumUnobservedTicks = this.durationTicks + 60;
     }
 
     @Override
@@ -50,6 +52,7 @@ public final class PeripheralEchoBehavior implements EchoBehaviorController {
             return;
         }
         age++;
+        echo.resetOriginalHead(1.5F, 1.0F);
         echo.setReplayOpacity(Math.min(context.config().memoryEchoOpacity(), age / 16.0F * context.config().memoryEchoOpacity()));
         boolean directlyObserved = EchoVisibility.isLookingAt(target, echo, 0.90D);
         directObservationTicks = directlyObserved ? directObservationTicks + 1 : 0;
@@ -70,7 +73,7 @@ public final class PeripheralEchoBehavior implements EchoBehaviorController {
             disappear(echo, target);
             return;
         }
-        if (age >= durationTicks) {
+        if (age >= durationTicks && (context.wasObserved() || age >= maximumUnobservedTicks)) {
             disappear(echo, target);
         }
     }
