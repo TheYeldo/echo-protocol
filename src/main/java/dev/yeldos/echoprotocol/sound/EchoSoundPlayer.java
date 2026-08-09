@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class EchoSoundPlayer {
+    private static final double MAX_CUE_DISTANCE = 12.0D;
     private static final Map<String, Long> COOLDOWNS = new HashMap<>();
 
     private EchoSoundPlayer() {
@@ -25,13 +26,16 @@ public final class EchoSoundPlayer {
             return false;
         }
         return switch (type) {
-            case MEMORY, FALSE_MEMORY -> play(target, "memory_ambient", SoundEvents.AMBIENT_CAVE.value(), config, pos, config.memoryEchoVolume(), 0.65F, 80);
+            case MEMORY, FALSE_MEMORY -> play(target, "memory_ambient", SoundEvents.AMBIENT_CAVE.value(), config,
+                    pos, config.memoryEchoVolume() * 1.2F, 0.65F, 80);
             case CORRUPTED -> {
                 boolean played = false;
                 if (config.staticEffectsEnabled()) {
-                    played = play(target, "corrupted_static", SoundEvents.BLOCK_SCULK_SENSOR_CLICKING, config, pos, config.corruptedEchoVolume(), 0.55F, 100);
+                    played = play(target, "corrupted_static", SoundEvents.BLOCK_SCULK_SENSOR_CLICKING, config,
+                            pos, config.corruptedEchoVolume(), 0.55F, 100);
                 }
-                yield play(target, "corrupted_ambient", SoundEvents.BLOCK_RESPAWN_ANCHOR_DEPLETE.value(), config, pos, config.corruptedEchoVolume() * 0.35F, 0.6F, 120) || played;
+                yield play(target, "corrupted_ambient", SoundEvents.BLOCK_RESPAWN_ANCHOR_DEPLETE.value(), config,
+                        pos, config.corruptedEchoVolume() * 0.35F, 0.6F, 120) || played;
             }
             case MIMIC -> {
                 boolean played = false;
@@ -84,11 +88,24 @@ public final class EchoSoundPlayer {
         if (config.sharedEchoes()) {
             target.getEntityWorld().playSound(null, pos.x, pos.y, pos.z, sound, SoundCategory.PLAYERS, finalVolume, pitch);
         } else {
+            Vec3d cuePos = audiblePosition(target, pos);
             target.networkHandler.sendPacket(new PlaySoundS2CPacket(Registries.SOUND_EVENT.getEntry(sound),
-                    SoundCategory.PLAYERS, pos.x, pos.y, pos.z, finalVolume, pitch,
+                    SoundCategory.PLAYERS, cuePos.x, cuePos.y, cuePos.z, finalVolume, pitch,
                     target.getRandom().nextLong()));
         }
         return true;
+    }
+
+    public static Vec3d audiblePosition(ServerPlayerEntity target, Vec3d source) {
+        return audiblePosition(target.getEyePos(), source);
+    }
+
+    static Vec3d audiblePosition(Vec3d listener, Vec3d source) {
+        Vec3d delta = source.subtract(listener);
+        if (delta.lengthSquared() <= MAX_CUE_DISTANCE * MAX_CUE_DISTANCE) {
+            return source;
+        }
+        return listener.add(delta.normalize().multiply(MAX_CUE_DISTANCE));
     }
 
     public static void clear(UUID uuid) {

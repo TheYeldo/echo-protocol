@@ -167,12 +167,19 @@ public final class EchoEventDirector {
                         threadStep.isPresent()));
                 if (decision == EventDirectorPolicy.Decision.ATTEMPT_THREAD
                         && spawnThreadEvent(player, threadStep.orElseThrow(), config)) {
+                    debug(config, "manifested thread event for {} at tick {}", player.getUuid(), stageManager.tick());
                     stageManager.scheduleNextEvent(state, config);
                     continue;
                 }
                 EventCategory category = chooseEvent(player, config);
                 boolean spawned = spawnDirectedEvent(player, category, config);
-                stageManager.scheduleNextEvent(state, config);
+                debug(config, "director selected {} for {} at tick {}: {}", category, player.getUuid(),
+                        stageManager.tick(), spawned ? "manifested" : "rejected");
+                if (spawned) {
+                    stageManager.scheduleNextEvent(state, config);
+                } else {
+                    stageManager.scheduleEventRetry(state, config);
+                }
                 if (spawned && category == EventCategory.MEMORY && state.stage() == EchoStage.DEJA_VU) {
                     state.incrementStageOneEvents();
                 }
@@ -368,11 +375,14 @@ public final class EchoEventDirector {
                 MemoryObservationResult.PERIPHERAL, "peripheral_echo", 0.015F));
         EchoEntity echo = createEcho(target, List.of(frame), context,
                 new PeripheralEchoBehavior(context, config.peripheralEchoDurationSeconds() * 20),
-                pos.get(), target.bodyYaw + 180.0F, target.getPitch(), config);
+                pos.get(), target.bodyYaw + 180.0F, 0.0F, config);
         if (echo == null) {
             return false;
         }
+        echo.setHeadYaw(echo.getYaw());
+        echo.setPitch(0.0F);
         registerEcho(target, echo);
+        EchoSoundPlayer.playSpawnProfile(target, EchoType.MEMORY, config, pos.get());
         peripheralSessionCounts.merge(uuid, 1, Integer::sum);
         lastPeripheralTicks.put(uuid, tick);
         if (!forced) {
@@ -593,10 +603,12 @@ public final class EchoEventDirector {
                                 == dev.yeldos.echoprotocol.thread.MemoryThreadType.BEDROOM,
                         threadContext == null ? "none" : threadContext.thread().type().commandName()
                                 + ":" + (threadContext.thread().currentStep() + 1)), spawnPos.get(),
-                target.bodyYaw + 180.0F, target.getPitch(), config);
+                target.bodyYaw + 180.0F, 0.0F, config);
         if (echo == null) {
             return false;
         }
+        echo.setHeadYaw(echo.getYaw());
+        echo.setPitch(0.0F);
         registerEcho(target, echo);
         if (!forced) {
             state.incrementTotalEvents();
@@ -857,6 +869,7 @@ public final class EchoEventDirector {
             candidates.add(new AdaptiveEventSelector.Candidate(EventCategory.CONTRADICTION,
                     EchoPresetManager.adjustWeight(2, multiplier)));
         }
+        debug(config, "eligible candidates for {} at tick {}: {}", target.getUuid(), stageManager.tick(), candidates);
         return selector.select(target.getUuid(), stageManager.tick(), candidates, eventHistory, config);
     }
 
@@ -1183,7 +1196,13 @@ public final class EchoEventDirector {
         echo.configure(target.getUuid(), config.sharedEchoes(), frames, config.recordingSampleIntervalTicks(),
                 config, context, behavior);
         echo.refreshPositionAndAngles(pos.x, pos.y, pos.z, yaw, pitch);
-        return target.getEntityWorld().spawnEntity(echo) ? echo : null;
+        if (!target.getEntityWorld().spawnEntity(echo)) {
+            debug(config, "entity spawn rejected for {} type={} pos={}", target.getUuid(), behavior.type(), pos);
+            return null;
+        }
+        debug(config, "entity spawned for {} id={} type={} pos={} frames={} baseState={}", target.getUuid(),
+                echo.getId(), behavior.type(), pos, frames.size(), behavior.state());
+        return echo;
     }
 
     private void registerEcho(ServerPlayerEntity target, EchoEntity echo) {
@@ -1241,6 +1260,8 @@ public final class EchoEventDirector {
                 return;
             }
             handled[0] = true;
+            debug(EchoProtocol.config(), "event {} observed by {} at tick {}", eventType, target.getUuid(),
+                    stageManager.tick());
             MemoryObservationResult result = resultSupplier.get();
             if (result == null) {
                 result = MemoryObservationResult.DIRECT;
@@ -1593,6 +1614,12 @@ public final class EchoEventDirector {
 
     private static long memoryTick(ServerPlayerEntity player) {
         return memoryTick(player.getEntityWorld().getServer());
+    }
+
+    private static void debug(EchoConfig config, String message, Object... arguments) {
+        if (config.debugLogging()) {
+            EchoProtocol.LOGGER.info("[director] " + message, arguments);
+        }
     }
 
     public void clear() {

@@ -54,6 +54,8 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         echoState.echoState = entity.echoState();
 
         state.spectator = false;
+        state.invisible = true;
+        state.invisibleToPlayer = false;
         state.hatVisible = true;
         state.jacketVisible = true;
         state.leftSleeveVisible = true;

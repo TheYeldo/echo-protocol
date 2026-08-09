@@ -3,6 +3,7 @@ package dev.yeldos.echoprotocol.stage;
 import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.config.EchoConfig;
 import dev.yeldos.echoprotocol.config.EchoPresetManager;
+import dev.yeldos.echoprotocol.director.EventDirectorPolicy;
 import dev.yeldos.echoprotocol.memory.PersistentEchoMemory;
 import dev.yeldos.echoprotocol.memory.PersistentMemoryManager;
 import dev.yeldos.echoprotocol.memory.PlayerMemoryState;
@@ -40,7 +41,6 @@ public final class StageManager {
             if (state.stage().id() < EchoStage.CORRUPTED_MEMORY.id()
                     && (minutes >= config.stageTwoMinutes() || state.stageOneEvents() >= 4)) {
                 state.setStage(EchoStage.CORRUPTED_MEMORY);
-                grant(player, "corrupted_memory");
             }
             if (canUnlockStageThree(state, config)) {
                 state.setStage(EchoStage.THE_ORIGINAL);
@@ -70,6 +70,12 @@ public final class StageManager {
         int maximum = Math.max(minimum,
                 EchoPresetManager.eventIntervalSeconds(config.maximumEventIntervalSeconds(), config));
         int seconds = ThreadLocalRandom.current().nextInt(minimum, maximum + 1);
+        state.setNextEventTick(tick + seconds * 20L);
+    }
+
+    public void scheduleEventRetry(PlayerEchoState state, EchoConfig config) {
+        int seconds = EventDirectorPolicy.failedAttemptRetrySeconds(
+                EchoPresetManager.eventIntervalSeconds(config.minimumEventIntervalSeconds(), config));
         state.setNextEventTick(tick + seconds * 20L);
     }
 

@@ -92,6 +92,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
             desyncObserved = true;
             context.markObserved();
             if (context.awardsProgress()) {
+                context.stageManager().grant(target, "corrupted_memory");
                 context.stageManager().grant(target, "broken_memory");
                 context.stageManager().grant(target, "out_of_sync");
             }
@@ -108,6 +109,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         if (watched) {
             context.markObserved();
             if (context.awardsProgress()) {
+                context.stageManager().grant(target, "corrupted_memory");
                 context.stageManager().grant(target, "it_saw_me");
                 context.stageManager().grant(target, "it_looked_back");
             }
@@ -139,7 +141,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
         boolean observed = EchoVisibility.isLookingAt(target, echo, 0.70D);
         if (context.config().echoMovesWhenUnobserved() && !observed && hidingSpot != null) {
             if (echo.moveToward(hidingSpot, 0.11D)) {
-                if (context.awardsProgress()) {
+                if (context.awardsProgress() && context.wasObserved()) {
                     context.stageManager().grant(target, "behind_you");
                 }
             }
