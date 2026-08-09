@@ -27,4 +27,13 @@ public final class EventDirectorPolicy {
     public static boolean lockAfterAttempt(boolean lockBeforeAttempt, boolean eventActuallyStarted) {
         return lockBeforeAttempt || eventActuallyStarted;
     }
+
+    /**
+     * A failed manifestation must not consume the full normal event interval. The retry remains bounded so a bad
+     * location cannot create a hot loop, while the default 8-18 minute pacing is not restarted after every rejected
+     * spawn.
+     */
+    public static int failedAttemptRetrySeconds(int minimumEventIntervalSeconds) {
+        return Math.max(15, Math.min(60, Math.max(1, minimumEventIntervalSeconds) / 4));
+    }
 }

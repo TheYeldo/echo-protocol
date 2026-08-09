@@ -347,7 +347,8 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
         float progress = MathHelper.clamp(segmentAge / (float) Math.max(1, segmentDuration), 0.0F, 1.0F);
         echo.setReplayOpacity((1.0F - progress) * context.config().originalNearFullOpacity());
         if (segmentAge >= segmentDuration) {
-            if (eventKind == OriginalEventKind.CONFRONTATION && context.awardsProgress()) {
+            if (eventKind == OriginalEventKind.CONFRONTATION && context.awardsProgress()
+                    && observedProgressGranted) {
                 context.stageManager().grant(target, "which_one_is_real");
             }
             echo.finishAndDiscard();

@@ -140,16 +140,16 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         }
         if (mistake) {
             independentMoves++;
-            if (context.awardsProgress()) {
-                context.stageManager().grant(target, "not_me");
-            }
             if (!oldItems.isEmpty() && ThreadLocalRandom.current().nextBoolean()) {
                 echo.setHeldItemVisual(oldItems.get(ThreadLocalRandom.current().nextInt(oldItems.size())));
             }
             if (ThreadLocalRandom.current().nextBoolean()) {
                 echo.lookAtTarget(0.35F);
+            }
+            if (EchoVisibility.isLookingAt(target, echo, 0.68D)) {
                 context.markObserved();
                 if (context.awardsProgress()) {
+                    context.stageManager().grant(target, "not_me");
                     context.stageManager().grant(target, "it_looked_back");
                 }
             }
@@ -157,8 +157,7 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         if (context.config().echoMovesWhenUnobserved() && !EchoVisibility.isLookingAt(target, echo, 0.68D) && stateAge % 45 == 0) {
             Vec3d closer = target.getEntityPos().subtract(target.getRotationVec(1.0F).multiply(3.2D));
             if (echo.moveToward(closer, 0.75D)) {
-                context.markObserved();
-                if (context.awardsProgress()) {
+                if (context.awardsProgress() && context.wasObserved()) {
                     context.stageManager().grant(target, "do_not_look_away");
                     context.stageManager().grant(target, "behind_you");
                 }

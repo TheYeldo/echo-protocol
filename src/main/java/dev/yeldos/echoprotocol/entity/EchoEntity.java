@@ -424,6 +424,21 @@ public final class EchoEntity extends MobEntity {
 
     public void finishAndDiscard() {
         worldInteraction.clear(this);
+        if (context != null && context.config().debugLogging()) {
+            dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
+                    "[director] entity cleaned for {} id={} type={} state={} age={} pos={}",
+                    context.targetUuid(), getId(), echoType(), echoState(), age, getEntityPos());
+        }
+        ServerPlayerEntity target = getTargetPlayer();
+        if (!eventFinished && target != null && context != null && context.awardsProgress()
+                && !context.wasObserved()) {
+            context.stageManager().scheduleEventRetry(context.stageManager().state(context.targetUuid()),
+                    context.config());
+            if (context.config().debugLogging()) {
+                dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
+                        "[director] unobserved event for {} scheduled for bounded retry", context.targetUuid());
+            }
+        }
         if (!eventFinished && context != null) {
             context.stageManager().state(context.targetUuid()).setActiveEvent(false);
             eventFinished = true;

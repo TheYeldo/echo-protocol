@@ -7,6 +7,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
@@ -149,10 +150,21 @@ public final class SafeEchoPositionFinder {
             return false;
         }
         if (requireFloor) {
-            BlockState floor = world.getBlockState(blockPos.down());
-            return !floor.getCollisionShape(world, blockPos.down()).isEmpty();
+            return hasSupportingSurface(world, pos);
         }
         return true;
+    }
+
+    private static boolean hasSupportingSurface(ServerWorld world, Vec3d pos) {
+        BlockPos supportPos = BlockPos.ofFloored(pos.x, pos.y - 1.0E-4D, pos.z);
+        var shape = world.getBlockState(supportPos).getCollisionShape(world, supportPos);
+        if (shape.isEmpty()) {
+            return false;
+        }
+        double localX = pos.x - Math.floor(pos.x);
+        double localZ = pos.z - Math.floor(pos.z);
+        double top = shape.getEndingCoord(Direction.Axis.Y, localX, localZ);
+        return Double.isFinite(top) && Math.abs(supportPos.getY() + top - pos.y) <= 1.0E-3D;
     }
 
     private static boolean isUnsafe(BlockState state) {
@@ -172,9 +184,15 @@ public final class SafeEchoPositionFinder {
     private static Vec3d dropToGround(ServerWorld world, Vec3d start) {
         BlockPos.Mutable mutable = BlockPos.ofFloored(start).mutableCopy();
         for (int i = 0; i < 5; i++) {
-            BlockState below = world.getBlockState(mutable.down());
-            if (!below.getCollisionShape(world, mutable.down()).isEmpty()) {
-                return Vec3d.ofBottomCenter(mutable);
+            BlockPos floorPos = mutable.down().toImmutable();
+            BlockState below = world.getBlockState(floorPos);
+            var shape = below.getCollisionShape(world, floorPos);
+            if (!shape.isEmpty()) {
+                double top = shape.getEndingCoord(Direction.Axis.Y, 0.5D, 0.5D);
+                if (Double.isFinite(top)) {
+                    return new Vec3d(mutable.getX() + 0.5D, floorPos.getY() + top,
+                            mutable.getZ() + 0.5D);
+                }
             }
             mutable.move(0, -1, 0);
         }

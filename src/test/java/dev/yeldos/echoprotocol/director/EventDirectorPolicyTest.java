@@ -26,4 +26,11 @@ class EventDirectorPolicyTest {
         assertFalse(EventDirectorPolicy.lockAfterAttempt(false, false));
         assertTrue(EventDirectorPolicy.lockAfterAttempt(false, true));
     }
+
+    @Test
+    void failedManifestationRetriesSoonWithoutCreatingAHotLoop() {
+        assertEquals(60, EventDirectorPolicy.failedAttemptRetrySeconds(480));
+        assertEquals(15, EventDirectorPolicy.failedAttemptRetrySeconds(30));
+        assertEquals(60, EventDirectorPolicy.failedAttemptRetrySeconds(3600));
+    }
 }
