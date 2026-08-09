@@ -33,4 +33,11 @@ class EventDirectorPolicyTest {
         assertEquals(15, EventDirectorPolicy.failedAttemptRetrySeconds(30));
         assertEquals(60, EventDirectorPolicy.failedAttemptRetrySeconds(3600));
     }
+
+    @Test
+    void unloadedOrOrphanedEntityCannotRetainTheEventLock() {
+        assertTrue(EventDirectorPolicy.retainActiveEcho(false, true));
+        assertFalse(EventDirectorPolicy.retainActiveEcho(true, true));
+        assertFalse(EventDirectorPolicy.retainActiveEcho(false, false));
+    }
 }
