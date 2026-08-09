@@ -2,6 +2,7 @@ package dev.yeldos.echoprotocol.audio;
 
 import dev.yeldos.echoprotocol.EchoProtocol;
 import dev.yeldos.echoprotocol.config.EchoConfig;
+import dev.yeldos.echoprotocol.sound.EchoSoundPlayer;
 import dev.yeldos.echoprotocol.stage.StageManager;
 import dev.yeldos.echoprotocol.util.SafeEchoPositionFinder;
 import net.minecraft.registry.Registries;
@@ -84,7 +85,8 @@ public final class AudioResidueManager {
             return reject(config, target, "no valid empty playback position");
         }
         SoundEvent sound = Registries.SOUND_EVENT.get(residue.soundId());
-        Vec3d pos = safe.get();
+        Vec3d sourcePos = safe.get();
+        Vec3d pos = config.sharedEchoes() ? sourcePos : EchoSoundPlayer.audiblePosition(target, sourcePos);
         float volume = Math.min(0.55F, residue.volume()) * config.echoMasterVolume();
         if (volume <= 0.0F) {
             return reject(config, target, "master volume is muted");

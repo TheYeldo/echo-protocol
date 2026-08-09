@@ -6,14 +6,25 @@ import net.minecraft.server.network.ServerPlayerEntity;
 
 import java.util.UUID;
 
-public record EchoEventContext(
-        UUID targetUuid,
-        EchoConfig config,
-        StageManager stageManager,
-        boolean forcedHostile,
-        boolean awardsProgress,
-        Runnable observedCallback
-) {
+public final class EchoEventContext {
+    private final UUID targetUuid;
+    private final EchoConfig config;
+    private final StageManager stageManager;
+    private final boolean forcedHostile;
+    private final boolean awardsProgress;
+    private final Runnable observedCallback;
+    private boolean observed;
+
+    public EchoEventContext(UUID targetUuid, EchoConfig config, StageManager stageManager, boolean forcedHostile,
+                            boolean awardsProgress, Runnable observedCallback) {
+        this.targetUuid = targetUuid;
+        this.config = config;
+        this.stageManager = stageManager;
+        this.forcedHostile = forcedHostile;
+        this.awardsProgress = awardsProgress;
+        this.observedCallback = observedCallback == null ? () -> { } : observedCallback;
+    }
+
     public EchoEventContext(UUID targetUuid, EchoConfig config, StageManager stageManager, boolean forcedHostile) {
         this(targetUuid, config, stageManager, forcedHostile, true, () -> { });
     }
@@ -24,7 +35,32 @@ public record EchoEventContext(
     }
 
     public void markObserved() {
+        observed = true;
         observedCallback.run();
+    }
+
+    public boolean wasObserved() {
+        return observed;
+    }
+
+    public UUID targetUuid() {
+        return targetUuid;
+    }
+
+    public EchoConfig config() {
+        return config;
+    }
+
+    public StageManager stageManager() {
+        return stageManager;
+    }
+
+    public boolean forcedHostile() {
+        return forcedHostile;
+    }
+
+    public boolean awardsProgress() {
+        return awardsProgress;
     }
 
     public ServerPlayerEntity target(net.minecraft.server.world.ServerWorld world) {
