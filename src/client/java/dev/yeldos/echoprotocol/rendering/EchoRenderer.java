@@ -46,9 +46,8 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         echoState.visible = client.player != null && entity.visibleTo(client.player.getUuid());
         echoState.echoType = entity.echoType();
         echoState.echoState = entity.echoState();
-        // A restrained cold cast recalls the original apparition texture while preserving the target skin.
-        // Low emission improves cave/night readability but keeps normal depth testing and cannot reveal Echoes
-        // through walls.
+        // Retain the small existing light-floor for low-light readability. A restrained blue-white mix color
+        // gives the skin a ghostly cast, while the normal translucent layer continues to use depth testing.
         state.light = LightmapTextureManager.applyEmission(state.light, 5);
 
         state.spectator = false;
@@ -149,7 +148,7 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
 
         @Override
         public VertexConsumer color(int red, int green, int blue, int alpha) {
-            delegate.color(Math.round(red * (196.0F / 255.0F)), Math.round(green * (224.0F / 255.0F)),
+            delegate.color(Math.round(red * (220.0F / 255.0F)), Math.round(green * (238.0F / 255.0F)),
                     blue, Math.round(alpha * this.alpha));
             return this;
         }
