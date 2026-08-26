@@ -115,7 +115,7 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
 
         @Override
         public VertexConsumer color(int red, int green, int blue, int alpha) {
-            delegate.color(Math.round(red * (196.0F / 255.0F)), Math.round(green * (224.0F / 255.0F)),
+            delegate.color(Math.round(red * (220.0F / 255.0F)), Math.round(green * (238.0F / 255.0F)),
                     blue, Math.round(alpha * this.alpha));
             return this;
         }
