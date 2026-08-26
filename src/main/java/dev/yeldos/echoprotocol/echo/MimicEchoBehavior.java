@@ -114,7 +114,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
 
     private void tickObserving(EchoEntity echo, ServerPlayerEntity target) {
         echo.lookAtTarget(0.08F);
-        echo.setReplayOpacity(Math.min(0.35F, stateAge / 80.0F));
+        float fadeIn = Math.min(1.0F, stateAge / 20.0F);
+        echo.setReplayOpacity(context.config().mimicEchoOpacity() * fadeIn);
         if (delayedFrames.size() > delayTicks) {
             transition(EchoState.COPYING, echo);
         }
@@ -184,7 +185,7 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
             Vec3d closer = target.getEntityPos().subtract(target.getRotationVec(1.0F).multiply(2.4D));
             echo.moveToward(closer, 0.08D);
         }
-        echo.setReplayOpacity(0.4F);
+        echo.setReplayOpacity(context.config().mimicEchoOpacity());
         if (stateAge > 80 || echo.squaredDistanceTo(target) < 4.0D) {
             transition(EchoState.DISAPPEARING, echo);
         }
@@ -217,7 +218,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
     }
 
     private void tickDisappearing(EchoEntity echo) {
-        echo.setReplayOpacity(Math.max(0.0F, 0.4F - stateAge / 45.0F));
+        float fade = 1.0F - stateAge / 45.0F;
+        echo.setReplayOpacity(Math.max(0.0F, context.config().mimicEchoOpacity() * fade));
         if (stateAge > 45) {
             EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.MIMIC, context.config(), echo.getEntityPos());
             EchoVisualEffects.disappear(echo.getTargetPlayer(), context.config(), echo.getEntityPos());
@@ -234,7 +236,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
         if (!echo.applyLiveFrame(frame, relativeDestination)) {
             return false;
         }
-        echo.setFadeOpacity(age, 20 * 30);
+        float fadeIn = Math.min(1.0F, age / 20.0F);
+        echo.setReplayOpacity(context.config().mimicEchoOpacity() * fadeIn);
         if (mistake) {
             if (ThreadLocalRandom.current().nextBoolean()) {
                 echo.setYaw(echo.getYaw() + 35.0F);

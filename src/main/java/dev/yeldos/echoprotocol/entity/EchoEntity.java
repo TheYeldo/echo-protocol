@@ -50,7 +50,7 @@ public final class EchoEntity extends MobEntity {
 
     private final List<RecordedFrame> replay = new ArrayList<>();
     private int sampleIntervalTicks = 2;
-    private float baseOpacity = 0.45F;
+    private float baseOpacity = 0.95F;
     private boolean grantLookAdvancement;
     private EchoEventContext context;
     private EchoBehaviorController behavior;
