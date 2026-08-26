@@ -82,7 +82,10 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
             echo.setHeldItemVisual(wrongItem);
         }
         if (context.config().corruptionFlickerEnabled() && !context.config().reducedFlashing()) {
-            float flicker = 0.32F + (float) Math.sin((echo.age + stateAge) * 0.55F) * 0.08F * context.config().corruptionVisualIntensity();
+            float baseOpacity = context.config().corruptedEchoOpacity();
+            float flicker = baseOpacity * (0.98F
+                    + (float) Math.sin((echo.age + stateAge) * 0.55F)
+                    * 0.02F * context.config().corruptionVisualIntensity());
             echo.setReplayOpacity(flicker);
         }
         if (stateAge % 18 == 0) {
@@ -104,7 +107,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
 
     private void tickWatching(EchoEntity echo, ServerPlayerEntity target) {
         echo.lookAtTarget(0.2F);
-        echo.setReplayOpacity(0.35F);
+        echo.setReplayOpacity(context.config().corruptedEchoOpacity());
         boolean watched = EchoVisibility.isLookingAt(target, echo, 0.78D);
         if (watched) {
             context.markObserved();
@@ -123,6 +126,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
 
     private void tickApproaching(EchoEntity echo, ServerPlayerEntity target) {
         echo.lookAtTarget(0.12F);
+        echo.setReplayOpacity(context.config().corruptedEchoOpacity());
         boolean observed = EchoVisibility.isLookingAt(target, echo, 0.72D);
         if (!observed || context.config().echoMovesWhenUnobserved()) {
             Vec3d destination = target.getEntityPos().subtract(target.getRotationVec(1.0F).multiply(2.8D));
@@ -146,7 +150,7 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
                 }
             }
         }
-        echo.setReplayOpacity(Math.max(0.05F, 0.35F - stateAge / 120.0F));
+        echo.setReplayOpacity(context.config().corruptedEchoOpacity());
         if (stateAge > 70) {
             transition(EchoState.FADING, echo);
         }
@@ -154,7 +158,8 @@ public final class CorruptedEchoBehavior implements EchoBehaviorController {
 
     private void tickFading(EchoEntity echo) {
         echo.lookAtTarget(0.05F);
-        echo.setReplayOpacity(Math.max(0.0F, 0.35F - stateAge / 35.0F));
+        float fade = 1.0F - stateAge / 35.0F;
+        echo.setReplayOpacity(Math.max(0.0F, context.config().corruptedEchoOpacity() * fade));
         if (stateAge > 35) {
             EchoSoundPlayer.playDisappear(echo.getTargetPlayer(), EchoType.CORRUPTED, context.config(), echo.getEntityPos());
             EchoVisualEffects.disappear(echo.getTargetPlayer(), context.config(), echo.getEntityPos());

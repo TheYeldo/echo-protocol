@@ -19,7 +19,6 @@ import net.minecraft.entity.player.PlayerSkinType;
 import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.util.Arm;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.ColorHelper;
 
 public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEntityRenderState, PlayerEntityModel> {
     private final PlayerEntityModel classicModel;
@@ -54,9 +53,8 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         echoState.visible = client.player != null && entity.visibleTo(client.player.getUuid());
         echoState.echoType = entity.echoType();
         echoState.echoState = entity.echoState();
-        // A restrained cold cast recalls the original apparition texture while preserving the target skin.
-        // Low emission improves cave/night readability but keeps normal depth testing and cannot reveal Echoes
-        // through walls.
+        // Retain the small existing light-floor for low-light readability. A restrained blue-white mix color
+        // gives the skin a ghostly cast, while the normal translucent layer continues to use depth testing.
         state.light = LightmapTextureManager.applyEmission(state.light, 5);
 
         state.spectator = false;
@@ -107,7 +105,7 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
     }
 
     public static int mixColor(PlayerEntityRenderState state) {
-        return ColorHelper.getArgb(ColorHelper.toAlpha(((EchoRenderState) state).opacity), 196, 224, 255);
+        return EchoRenderColor.withOpacity(((EchoRenderState) state).opacity);
     }
 
     public static RenderLayer renderLayer(PlayerEntityRenderState state) {

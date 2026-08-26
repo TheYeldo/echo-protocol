@@ -33,6 +33,56 @@ class EchoConfigTest {
     }
 
     @Test
+    void legacyDefaultOpacityUpgradesForReadabilityWhileCustomValuesRemain() throws IOException {
+        Path legacy = directory.resolve("legacy-opacity.json");
+        Files.writeString(legacy, "{\"echo_opacity\":0.45,\"memory_echo_opacity\":0.42,"
+                + "\"corrupted_echo_opacity\":0.48,\"mimic_echo_opacity\":0.58}");
+
+        EchoConfig upgraded = EchoConfig.load(legacy);
+
+        assertEquals(0.95F, upgraded.echoOpacity());
+        assertEquals(0.95F, upgraded.memoryEchoOpacity());
+        assertEquals(0.95F, upgraded.corruptedEchoOpacity());
+        assertEquals(0.95F, upgraded.mimicEchoOpacity());
+
+        Path previousDefaults = directory.resolve("previous-opacity-defaults.json");
+        Files.writeString(previousDefaults, "{\"echo_opacity\":0.82,\"memory_echo_opacity\":0.82,"
+                + "\"corrupted_echo_opacity\":0.85,\"mimic_echo_opacity\":0.85}");
+
+        EchoConfig upgradedPreviousDefaults = EchoConfig.load(previousDefaults);
+
+        assertEquals(0.95F, upgradedPreviousDefaults.echoOpacity());
+        assertEquals(0.95F, upgradedPreviousDefaults.memoryEchoOpacity());
+        assertEquals(0.95F, upgradedPreviousDefaults.corruptedEchoOpacity());
+        assertEquals(0.95F, upgradedPreviousDefaults.mimicEchoOpacity());
+
+        Path ninetyPercentDefaults = directory.resolve("ninety-percent-opacity-defaults.json");
+        Files.writeString(ninetyPercentDefaults, "{\"echo_opacity\":0.90,\"memory_echo_opacity\":0.90,"
+                + "\"corrupted_echo_opacity\":0.90,\"mimic_echo_opacity\":0.90,"
+                + "\"mimic_threatening_opacity\":0.90,\"original_near_full_opacity\":0.94}");
+
+        EchoConfig upgradedNinetyPercentDefaults = EchoConfig.load(ninetyPercentDefaults);
+
+        assertEquals(0.95F, upgradedNinetyPercentDefaults.echoOpacity());
+        assertEquals(0.95F, upgradedNinetyPercentDefaults.memoryEchoOpacity());
+        assertEquals(0.95F, upgradedNinetyPercentDefaults.corruptedEchoOpacity());
+        assertEquals(0.95F, upgradedNinetyPercentDefaults.mimicEchoOpacity());
+        assertEquals(0.95F, upgradedNinetyPercentDefaults.mimicThreateningOpacity());
+        assertEquals(0.95F, upgradedNinetyPercentDefaults.originalNearFullOpacity());
+
+        Path custom = directory.resolve("custom-opacity.json");
+        Files.writeString(custom, "{\"echo_opacity\":0.67,\"memory_echo_opacity\":0.65,"
+                + "\"corrupted_echo_opacity\":0.72,\"mimic_echo_opacity\":0.76}");
+
+        EchoConfig preserved = EchoConfig.load(custom);
+
+        assertEquals(0.67F, preserved.echoOpacity());
+        assertEquals(0.65F, preserved.memoryEchoOpacity());
+        assertEquals(0.72F, preserved.corruptedEchoOpacity());
+        assertEquals(0.76F, preserved.mimicEchoOpacity());
+    }
+
+    @Test
     void representativePointTwoPointThreeAndPointFourValuesSurviveMigration() throws IOException {
         Path pointTwo = directory.resolve("point-two.json");
         Files.writeString(pointTwo, "{\"shared_echoes\":true,\"memory_echo_weight\":55}");
