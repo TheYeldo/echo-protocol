@@ -94,12 +94,12 @@ public record EchoConfig(
     }
 
     public static EchoConfig defaults() {
-        return new EchoConfig(true, 2, 10, 5, 15, 10, 60, 480, 1080, false, false, true, true, 0.45F, false,
+        return new EchoConfig(true, 2, 10, 5, 15, 10, 60, 480, 1080, false, false, true, true, 0.95F, false,
                 true, true, true, 70, 25, 5, 30, 60, 40, 80, true, 4.0F, 1, true, 5, 10, true, true, true, true,
-                true, true, 0.42F, 0.48F, 0.58F, 0.90F, true, true, 0.65F, false, true,
+                true, true, 0.95F, 0.95F, 0.95F, 0.95F, true, true, 0.65F, false, true,
                 0.75F, 0.55F, 0.70F, 0.80F, true, true, 16, 8, 32,
                 true, 180, 8, 4, 2, true, 20, 60, 150, true, false, false,
-                4.0F, 1, 16, 0.94F, V04Settings.defaults(), BetaSettings.defaults());
+                4.0F, 1, 16, 0.95F, V04Settings.defaults(), BetaSettings.defaults());
     }
 
     public static EchoConfig load() {
@@ -356,7 +356,7 @@ public record EchoConfig(
                 raw.chat_echoes == null ? defaults.chatEchoes : raw.chat_echoes,
                 raw.torch_flicker == null ? defaults.torchFlicker : raw.torch_flicker,
                 raw.sound_echoes == null ? defaults.soundEchoes : raw.sound_echoes,
-                raw.echo_opacity == null ? defaults.echoOpacity : raw.echo_opacity,
+                upgradeLegacyOpacity(raw.echo_opacity, defaults.echoOpacity, 0.45F, 0.82F, 0.90F),
                 raw.debug_logging == null ? defaults.debugLogging : raw.debug_logging,
                 raw.memory_echo_enabled == null ? defaults.memoryEchoEnabled : raw.memory_echo_enabled,
                 raw.corrupted_echo_enabled == null ? defaults.corruptedEchoEnabled : raw.corrupted_echo_enabled,
@@ -380,10 +380,10 @@ public record EchoConfig(
                 raw.echo_sound_effects == null ? defaults.echoSoundEffects : raw.echo_sound_effects,
                 raw.real_player_skins == null ? defaults.realPlayerSkins : raw.real_player_skins,
                 raw.skin_cache_enabled == null ? defaults.skinCacheEnabled : raw.skin_cache_enabled,
-                raw.memory_echo_opacity == null ? defaults.memoryEchoOpacity : raw.memory_echo_opacity,
-                raw.corrupted_echo_opacity == null ? defaults.corruptedEchoOpacity : raw.corrupted_echo_opacity,
-                raw.mimic_echo_opacity == null ? defaults.mimicEchoOpacity : raw.mimic_echo_opacity,
-                raw.mimic_threatening_opacity == null ? defaults.mimicThreateningOpacity : raw.mimic_threatening_opacity,
+                upgradeLegacyOpacity(raw.memory_echo_opacity, defaults.memoryEchoOpacity, 0.42F, 0.82F, 0.90F),
+                upgradeLegacyOpacity(raw.corrupted_echo_opacity, defaults.corruptedEchoOpacity, 0.48F, 0.85F, 0.90F),
+                upgradeLegacyOpacity(raw.mimic_echo_opacity, defaults.mimicEchoOpacity, 0.58F, 0.85F, 0.90F),
+                upgradeLegacyOpacity(raw.mimic_threatening_opacity, defaults.mimicThreateningOpacity, 0.90F),
                 raw.corruption_flicker_enabled == null ? defaults.corruptionFlickerEnabled : raw.corruption_flicker_enabled,
                 raw.corruption_afterimages_enabled == null ? defaults.corruptionAfterimagesEnabled : raw.corruption_afterimages_enabled,
                 raw.corruption_visual_intensity == null ? defaults.corruptionVisualIntensity : raw.corruption_visual_intensity,
@@ -413,7 +413,7 @@ public record EchoConfig(
                 raw.original_damage == null ? defaults.originalDamage : raw.original_damage,
                 raw.original_maximum_active_per_player == null ? defaults.originalMaximumActivePerPlayer : raw.original_maximum_active_per_player,
                 raw.original_maximum_familiar_locations == null ? defaults.originalMaximumFamiliarLocations : raw.original_maximum_familiar_locations,
-                raw.original_near_full_opacity == null ? defaults.originalNearFullOpacity : raw.original_near_full_opacity,
+                upgradeLegacyOpacity(raw.original_near_full_opacity, defaults.originalNearFullOpacity, 0.94F),
                 V04Settings.fromRaw(raw, defaults.v04),
                 BetaSettings.fromRaw(raw, defaults.beta)
         );
@@ -513,6 +513,18 @@ public record EchoConfig(
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static float upgradeLegacyOpacity(Float configured, float currentDefault, float... legacyDefaults) {
+        if (configured == null) {
+            return currentDefault;
+        }
+        for (float legacyDefault : legacyDefaults) {
+            if (Math.abs(configured - legacyDefault) < 0.0001F) {
+                return currentDefault;
+            }
+        }
+        return configured;
     }
 
     private static float clampFloat(float value, float min, float max) {
