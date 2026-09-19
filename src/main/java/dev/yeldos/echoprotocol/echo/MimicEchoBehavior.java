@@ -79,8 +79,8 @@ public final class MimicEchoBehavior implements EchoBehaviorController {
             return;
         }
         if (mimicOrigin == null) {
-            mimicOrigin = echo.getEntityPos();
-            targetOrigin = target.getEntityPos();
+            mimicOrigin = echo.getPos();
+            targetOrigin = target.getPos();
         }
         capture(target);
         echo.setEchoState(state);
