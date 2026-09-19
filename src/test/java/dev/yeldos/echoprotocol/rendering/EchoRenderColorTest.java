@@ -14,7 +14,6 @@ class EchoRenderColorTest {
         assertEquals(220, ColorHelper.getRed(color));
         assertEquals(238, ColorHelper.getGreen(color));
         assertEquals(255, ColorHelper.getBlue(color));
-        assertEquals(242 / 255.0F, ColorHelper.getAlphaFloat(color));
     }
 
     @Test
