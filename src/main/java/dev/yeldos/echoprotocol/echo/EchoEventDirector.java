@@ -1564,7 +1564,7 @@ public final class EchoEventDirector {
     private void cleanupActiveEchoes() {
         activeEchoes.entrySet().removeIf(entry -> {
             entry.getValue().removeIf(echo -> {
-                boolean trackedInWorld = echo.getEntityWorld() instanceof ServerWorld world
+                boolean trackedInWorld = echo.getWorld() instanceof ServerWorld world
                         && world.getEntityById(echo.getId()) == echo;
                 if (EventDirectorPolicy.retainActiveEcho(echo.isRemoved(), trackedInWorld)) {
                     return false;
