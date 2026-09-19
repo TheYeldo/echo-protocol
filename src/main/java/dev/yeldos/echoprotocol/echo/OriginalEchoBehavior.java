@@ -122,7 +122,7 @@ public final class OriginalEchoBehavior implements EchoBehaviorController {
             if (context.config().debugLogging()) {
                 dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
                         "[director] Original id={} event={} movementMode={} spawn={} anchor={} plan={}", echo.getId(),
-                        eventKind, movementTest == null ? "natural" : movementTest, echo.getEntityPos(), anchor,
+                        eventKind, movementTest == null ? "natural" : movementTest, echo.getPos(), anchor,
                         plan.segments());
             }
             beginSegment(echo);
