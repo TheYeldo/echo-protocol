@@ -127,7 +127,7 @@ public final class EchoEntity extends MobEntity {
             replayMainHandSwing = false;
             replayOffHandSwing = false;
         }
-        telemetryPreviousPosition = getEntityPos();
+        telemetryPreviousPosition = getPos();
         telemetryMovingTicks = 0;
         telemetryIdleTicks = 0;
         telemetryRejectedReplaySegments = 0;
@@ -157,14 +157,14 @@ public final class EchoEntity extends MobEntity {
         worldInteractionsReady = true;
         behavior.tick(this);
         if (!isRemoved() && telemetryEnabled) {
-            double distance = getEntityPos().distanceTo(telemetryPreviousPosition);
+            double distance = getPos().distanceTo(telemetryPreviousPosition);
             telemetryDistanceTraveled += distance;
             if (distance > 1.0E-3D) {
                 telemetryMovingTicks++;
             } else {
                 telemetryIdleTicks++;
             }
-            telemetryPreviousPosition = getEntityPos();
+            telemetryPreviousPosition = getPos();
         }
         if (!isRemoved()) {
             worldInteraction.tick(this);
@@ -453,7 +453,7 @@ public final class EchoEntity extends MobEntity {
         if (telemetryEnabled && context != null) {
             dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
                     "[director] entity cleaned for {} id={} type={} state={} age={} pos={}",
-                    context.targetUuid(), getId(), echoType(), echoState(), age, getEntityPos());
+                    context.targetUuid(), getId(), echoType(), echoState(), age, getPos());
             dev.yeldos.echoprotocol.EchoProtocol.LOGGER.info(
                     "[director] manifestation metrics id={} type={} frames={} plannedDistance={} actualDistance={} "
                             + "movingTicks={} idleTicks={} rejectedSegments={} heldItem={}",

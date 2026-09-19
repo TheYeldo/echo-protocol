@@ -43,7 +43,8 @@ public final class EchoRenderer extends BipedEntityRenderer<EchoEntity, PlayerEn
         applyTypeVisualOffset(entity, matrices, tickDelta);
         // Retain a small light floor for low-light readability while preserving normal depth testing.
         super.render(entity, yaw, tickDelta, matrices, lightAware(vertexConsumers, entity),
-                LightmapTextureManager.applyEmission(light, 5));
+                LightmapTextureManager.pack(Math.max(LightmapTextureManager.getBlockLightCoordinates(light), 5),
+                        LightmapTextureManager.getSkyLightCoordinates(light)));
         matrices.pop();
     }
 

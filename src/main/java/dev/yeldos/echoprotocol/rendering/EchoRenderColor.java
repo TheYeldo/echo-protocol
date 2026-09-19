@@ -13,6 +13,6 @@ public final class EchoRenderColor {
 
     public static int withOpacity(float opacity) {
         int alpha = ColorHelper.channelFromFloat(MathHelper.clamp(opacity, 0.0F, 1.0F));
-        return ColorHelper.getArgb(alpha, GHOST_RED, GHOST_GREEN, GHOST_BLUE);
+        return alpha << 24 | GHOST_RED << 16 | GHOST_GREEN << 8 | GHOST_BLUE;
     }
 }
